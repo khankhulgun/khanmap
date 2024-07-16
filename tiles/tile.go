@@ -126,11 +126,11 @@ func constructSQLColumns(layer models.MapLayers) string {
 
 	var newColumns []string
 	for col := range columnMap {
-		newColumns = append(newColumns, "'"+col+"'")
+		newColumns = append(newColumns, "\""+col+"\"")
 	}
 
 	if layer.UniqueValueField != nil && !uniqueValueFieldFound {
-		newColumns = append(newColumns, "'"+*layer.UniqueValueField+"'")
+		newColumns = append(newColumns, "\""+*layer.UniqueValueField+"\"")
 	}
 
 	return strings.Join(newColumns, ", ")
