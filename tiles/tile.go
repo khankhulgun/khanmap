@@ -74,33 +74,66 @@ func fetchTileData(query string, args ...interface{}) ([]byte, error) {
 }
 
 func fetchLayerDetails(layerID string) (models.MapLayers, error) {
-	// Normalize the layerID to ensure consistent keys
 	layerID = strings.TrimSpace(layerID)
 
-	// Check if the layer details are in the cache
 	if cachedLayer, found := layerCache.Get(layerID); found {
 		layerDetails, ok := cachedLayer.(models.MapLayers)
 		if ok {
-
 			return layerDetails, nil
 		}
-
 	}
 
-	// If not in cache, query the database
 	var layerDetails models.MapLayers
 	err := DB.DB.Where("id = ?", layerID).First(&layerDetails).Error
 	if err != nil {
-
 		return layerDetails, err
 	}
 
-	// Store the layer details in the cache
 	layerCache.SetWithTTL(layerID, layerDetails, 1, 60*time.Minute)
-	// Ensure that the item has been added to the cache
 	layerCache.Wait()
 
 	return layerDetails, nil
+}
+func constructSQLColumns(layer models.MapLayers) string {
+	sqlColumns := layer.ColumnSelects
+	if sqlColumns == "" {
+		return "'" + layer.IDFieldName + "'"
+	}
+
+	columns := strings.Split(sqlColumns, ",")
+	columnMap := make(map[string]bool)
+	idPresent := false
+	uniqueValueFieldFound := false
+
+	for _, col := range columns {
+		col = strings.TrimSpace(col)
+		if col != "" {
+			columnMap[col] = true
+			if col == layer.IDFieldName {
+				idPresent = true
+			}
+			if layer.UniqueValueField != nil && col == *layer.UniqueValueField {
+				uniqueValueFieldFound = true
+			}
+		}
+	}
+
+	if !idPresent {
+		columnMap[layer.IDFieldName] = true
+	}
+
+	delete(columnMap, layer.GeometryFieldName)
+
+	var newColumns []string
+	for col := range columnMap {
+		newColumns = append(newColumns, "'"+col+"'")
+	}
+
+	if layer.UniqueValueField != nil && !uniqueValueFieldFound {
+		newColumns = append(newColumns, "'"+*layer.UniqueValueField+"'")
+	}
+
+	return strings.Join(newColumns, ", ")
 }
 
 func tileHandler(layer models.MapLayers) fiber.Handler {
@@ -112,51 +145,7 @@ func tileHandler(layer models.MapLayers) fiber.Handler {
 		}
 
 		minX, minY, maxX, maxY := tileToBBox(z, x, y)
-
-		sqlColumns := layer.ColumnSelects
-		if sqlColumns == "" {
-			sqlColumns = layer.IDFieldName
-		} else {
-			// Process to remove duplicates and ensure 'id' is included if not present
-			columns := strings.Split(sqlColumns, ",")
-			columnMap := make(map[string]bool)
-			idPresent := false
-			uniqueValueFieldFound := false
-
-			for _, col := range columns {
-				col = strings.TrimSpace(col) // Clean up whitespace
-				if col != "" {
-					columnMap[col] = true
-					if col == layer.IDFieldName {
-						idPresent = true
-					}
-					if layer.UniqueValueField != nil {
-						if col == *layer.UniqueValueField {
-							uniqueValueFieldFound = true
-						}
-					}
-				}
-			}
-
-			// Ensure the ID fieldname is included if it's not present
-			if !idPresent {
-				columnMap[layer.IDFieldName] = true
-			}
-
-			// Remove the geometry fieldname if it's present in the selects
-			delete(columnMap, layer.GeometryFieldName)
-
-			// Rebuild the sqlColumns string without duplicates and with 'id' included
-			var newColumns []string
-			for col := range columnMap {
-				newColumns = append(newColumns, col)
-			}
-
-			if layer.UniqueValueField != nil && !uniqueValueFieldFound {
-				newColumns = append(newColumns, *layer.UniqueValueField)
-			}
-			sqlColumns = strings.Join(newColumns, ", ")
-		}
+		sqlColumns := constructSQLColumns(layer)
 
 		query := `
 			SELECT ST_AsMVT(q, ?, ?, ?) FROM (
