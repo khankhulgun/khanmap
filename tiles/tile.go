@@ -73,17 +73,17 @@ func fetchTileData(query string, args ...interface{}) ([]byte, error) {
 	return mvtData, nil
 }
 
-func fetchLayerDetails(layerID string) (models.MapLayers, error) {
+func fetchLayerDetails(layerID string) (models.MapLayersForTile, error) {
 	layerID = strings.TrimSpace(layerID)
 
 	if cachedLayer, found := layerCache.Get(layerID); found {
-		layerDetails, ok := cachedLayer.(models.MapLayers)
+		layerDetails, ok := cachedLayer.(models.MapLayersForTile)
 		if ok {
 			return layerDetails, nil
 		}
 	}
 
-	var layerDetails models.MapLayers
+	var layerDetails models.MapLayersForTile
 	err := DB.DB.Where("id = ?", layerID).First(&layerDetails).Error
 	if err != nil {
 		return layerDetails, err
@@ -94,7 +94,7 @@ func fetchLayerDetails(layerID string) (models.MapLayers, error) {
 
 	return layerDetails, nil
 }
-func constructSQLColumns(layer models.MapLayers) string {
+func constructSQLColumns(layer models.MapLayersForTile) string {
 	sqlColumns := layer.ColumnSelects
 	if sqlColumns == "" {
 		return "'" + layer.IDFieldName + "'"
@@ -136,7 +136,7 @@ func constructSQLColumns(layer models.MapLayers) string {
 	return strings.Join(newColumns, ", ")
 }
 
-func tileHandler(layer models.MapLayers) fiber.Handler {
+func tileHandler(layer models.MapLayersForTile) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		z, x, y, err := parseTileParams(c)
 		if err != nil {
