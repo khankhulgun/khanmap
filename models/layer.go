@@ -21,7 +21,7 @@ type MapLayersForTile struct {
 }
 
 func (m *MapLayersForTile) TableName() string {
-	return "mapserver.map_layers"
+	return "map_server.map_layers"
 }
 
 type MapLayerCategory struct {
@@ -34,7 +34,7 @@ type MapLayerCategory struct {
 }
 
 func (m *MapLayerCategory) TableName() string {
-	return "mapserver.map_layer_category"
+	return "map_server.map_layer_category"
 }
 
 type MapLayers struct {
@@ -60,7 +60,7 @@ type MapLayers struct {
 }
 
 func (m *MapLayers) TableName() string {
-	return "mapserver.map_layers"
+	return "map_server.map_layers"
 }
 
 type MapLayerLegends struct {
@@ -78,5 +78,5 @@ type MapLayerLegends struct {
 }
 
 func (m *MapLayerLegends) TableName() string {
-	return "mapserver.map_layer_legends"
+	return "map_server.map_layer_legends"
 }
