@@ -73,7 +73,7 @@ func fetchTileData(query string, args ...interface{}) ([]byte, error) {
 	return mvtData, nil
 }
 
-func fetchLayerDetails(layerID string) (models.MapLayersForTile, error) {
+func FetchLayerDetails(layerID string) (models.MapLayersForTile, error) {
 	layerID = strings.TrimSpace(layerID)
 
 	if cachedLayer, found := layerCache.Get(layerID); found {
@@ -94,7 +94,7 @@ func fetchLayerDetails(layerID string) (models.MapLayersForTile, error) {
 
 	return layerDetails, nil
 }
-func constructSQLColumns(layer models.MapLayersForTile) string {
+func ConstructSQLColumns(layer models.MapLayersForTile, ignoreGeometry bool) string {
 	sqlColumns := layer.ColumnSelects
 	if sqlColumns == "" {
 		return "'" + layer.IDFieldName + "'"
@@ -122,7 +122,9 @@ func constructSQLColumns(layer models.MapLayersForTile) string {
 		columnMap[layer.IDFieldName] = true
 	}
 
-	delete(columnMap, layer.GeometryFieldName)
+	if ignoreGeometry {
+		delete(columnMap, layer.GeometryFieldName)
+	}
 
 	var newColumns []string
 	for col := range columnMap {
@@ -145,7 +147,7 @@ func tileHandler(layer models.MapLayersForTile) fiber.Handler {
 		}
 
 		minX, minY, maxX, maxY := tileToBBox(z, x, y)
-		sqlColumns := constructSQLColumns(layer)
+		sqlColumns := ConstructSQLColumns(layer, true)
 
 		query := `
 			SELECT ST_AsMVT(q, ?, ?, ?) FROM (
@@ -173,7 +175,7 @@ func tileHandler(layer models.MapLayersForTile) fiber.Handler {
 
 func VectorTileHandler(c *fiber.Ctx) error {
 	layer := c.Params("layer")
-	layerDetails, err := fetchLayerDetails(layer)
+	layerDetails, err := FetchLayerDetails(layer)
 	if err != nil {
 		log.Printf("Layer not found: %v", err)
 		return c.Status(fiber.StatusNotFound).SendString("Layer not found")

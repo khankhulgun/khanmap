@@ -15,4 +15,6 @@ func Set(app *fiber.App) {
 	a.Get("/table-columns/:schema/:table", agentMW.IsLoggedIn(), controllers.TableColumns)
 	a.Get("/map/:id", controllers.GetMapLayers)
 
+	a.Post("/spatial/:layer/:relationship", controllers.Spatial)
+
 }
