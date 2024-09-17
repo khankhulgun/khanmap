@@ -1,12 +1,10 @@
 package controllers
 
 import (
-	"fmt"
 	"github.com/gofiber/fiber/v2"
+	"github.com/khankhulgun/khanmap/maplayer"
 	"github.com/khankhulgun/khanmap/models"
-	"github.com/khankhulgun/khanmap/tiles"
-	"github.com/lambda-platform/lambda/DB"
-	"strings"
+	"github.com/khankhulgun/khanmap/spatial"
 )
 
 func Spatial(c *fiber.Ctx) error {
@@ -39,7 +37,7 @@ func Spatial(c *fiber.Ctx) error {
 	}
 
 	// Fetch layer details
-	layerDetails, err := tiles.FetchLayerDetails(layer)
+	layerDetails, err := maplayer.FetchLayerDetails(layer)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"status":  "error",
@@ -47,46 +45,26 @@ func Spatial(c *fiber.Ctx) error {
 		})
 	}
 
-	// Define the SQL relationship function mapping
-	relationshipFunctions := map[string]string{
-		"contains":   "ST_Contains",
-		"crosses":    "ST_Crosses",
-		"disjoint":   "ST_Disjoint",
-		"equals":     "ST_Equals",
-		"intersects": "ST_Intersects",
-		"overlaps":   "ST_Overlaps",
-		"within":     "ST_Within",
-		"touches":    "ST_Touches",
-	}
-
 	// Get the corresponding PostGIS function for the relationship
-	sqlFunction, ok := relationshipFunctions[strings.ToLower(relationship)]
-	if !ok {
+	sqlFunction, err := spatial.GetRelationshipFunction(relationship)
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"status":  "error",
-			"message": "Invalid spatial relationship",
+			"message": err.Error(),
 		})
 	}
 
+	// Adjust the columns to select based on input
 	if input.OutFields != "*" && input.OutFields != "" {
 		layerDetails.ColumnSelects = layerDetails.IDFieldName + "," + input.OutFields
 	} else if input.OutFields == "" {
 		layerDetails.ColumnSelects = layerDetails.IDFieldName
 	}
 
-	if input.ReturnGeometry {
-		layerDetails.ColumnSelects = layerDetails.ColumnSelects + "," + layerDetails.GeometryFieldName
-	}
-
-	// Construct the SQL query
-	query := fmt.Sprintf(`
-		SELECT %s FROM %s.%s
-		WHERE %s(%s, ST_GeomFromText(?, 4326))
-	`, tiles.ConstructSQLColumns(layerDetails, false), layerDetails.DbSchema, layerDetails.DbTable, sqlFunction, layerDetails.GeometryFieldName)
-
-	// Execute the query
-	var results []map[string]interface{}
-	if err := DB.DB.Raw(query, input.Geometry).Scan(&results).Error; err != nil {
+	// Build and execute the spatial query
+	query := spatial.BuildSpatialQuery(layerDetails, sqlFunction, input.Geometry, input.ReturnGeometry)
+	results, err := spatial.ExecuteSpatialQuery(query, input.Geometry)
+	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"status":  "error",
 			"message": "Error executing spatial query",
