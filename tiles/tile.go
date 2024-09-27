@@ -1,12 +1,15 @@
 package tiles
 
 import (
+	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/khankhulgun/khanmap/maplayer"
 	"github.com/khankhulgun/khanmap/models"
 	"github.com/lambda-platform/lambda/DB"
 	"log"
 	"math"
+	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -63,11 +66,22 @@ func tileHandler(layer models.MapLayersForTile) fiber.Handler {
 			log.Printf("Invalid tile parameters: %v", err)
 			return c.Status(fiber.StatusBadRequest).SendString("Invalid tile parameters")
 		}
+		mvtData, err := getVectorTile(z, x, y, layer)
 
-		minX, minY, maxX, maxY := tileToBBox(z, x, y)
-		sqlColumns := maplayer.ConstructSQLColumns(layer, true)
+		if err != nil {
+			log.Printf("Database error: %v", err)
+			return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
+		}
 
-		query := `
+		c.Set("Content-Type", "application/vnd.mapbox-vector-tile")
+		return c.Send(mvtData)
+	}
+}
+func getVectorTile(z, x, y int, layer models.MapLayersForTile) ([]byte, error) {
+	minX, minY, maxX, maxY := tileToBBox(z, x, y)
+	sqlColumns := maplayer.ConstructSQLColumns(layer, true)
+
+	query := `
 			SELECT ST_AsMVT(q, ?, ?, ?) FROM (
 				SELECT ` + sqlColumns + `, ST_AsMVTGeom(
 					` + layer.GeometryFieldName + `,
@@ -80,15 +94,45 @@ func tileHandler(layer models.MapLayersForTile) fiber.Handler {
 				WHERE ` + layer.GeometryFieldName + ` && ST_MakeEnvelope(?, ?, ?, ?, 4326)
 			) AS q
 		`
-		mvtData, err := fetchTileData(query, layer.DbSchema+"."+layer.DbTable, tileSize, layer.GeometryFieldName, minX, minY, maxX, maxY, tileSize, tileExtent, minX, minY, maxX, maxY)
-		if err != nil {
-			log.Printf("Database error: %v", err)
-			return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
-		}
+	return fetchTileData(query, layer.DbSchema+"."+layer.DbTable, tileSize, layer.GeometryFieldName, minX, minY, maxX, maxY, tileSize, tileExtent, minX, minY, maxX, maxY)
 
-		c.Set("Content-Type", "application/vnd.mapbox-vector-tile")
-		return c.Send(mvtData)
+}
+func SaveVectorTileHandler(c *fiber.Ctx) error {
+	layer := c.Params("layer")
+	z := c.Params("z")
+	x := c.Params("x")
+	y := c.Params("y")
+
+	// Fetch the layer details
+	layerDetails, err := maplayer.FetchLayerDetails(layer)
+	if err != nil {
+		log.Printf("Layer not found: %v", err)
+		return c.Status(fiber.StatusNotFound).SendString("Layer not found")
 	}
+
+	// Construct the tile file path based on the layer, zoom, x, y parameters
+	tilePath := filepath.Join(downloadDir, fmt.Sprintf("%s/%s/%s/%s.pbf", layerDetails.ID, z, x, y))
+
+	// Check if the tile already exists
+	if _, err := os.Stat(tilePath); err == nil {
+		// Tile exists, serve the existing tile
+		return c.SendFile(tilePath)
+	}
+
+	return tileHandler(layerDetails)(c)
+}
+
+func SaveHandler(c *fiber.Ctx) error {
+	layer := c.Params("layer")
+
+	layerDetails, err := maplayer.FetchLayerDetails(layer)
+	if err != nil {
+		log.Printf("Layer not found: %v", err)
+		return c.Status(fiber.StatusNotFound).SendString("Layer not found")
+	}
+	CreateTiles(layerDetails)
+
+	return nil
 }
 
 func VectorTileHandler(c *fiber.Ctx) error {
