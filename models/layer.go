@@ -18,6 +18,8 @@ type MapLayersForTile struct {
 	PopupTemplate      *string `gorm:"column:popup_template" json:"popup_template"`
 	UniqueValueField   *string `gorm:"column:unique_value_field" json:"unique_value_field"`
 	IsOverlap          bool    `gorm:"column:is_overlap" json:"is_overlap"`
+	IsPermission       bool    `gorm:"column:is_permission" json:"is_permission"`
+	OrgIDField         *string `gorm:"column:org_id_field" json:"org_id_field"`
 }
 
 func (m *MapLayersForTile) TableName() string {
@@ -55,6 +57,8 @@ type MapLayers struct {
 	PopupTemplate      *string           `gorm:"column:popup_template" json:"popup_template"`
 	UniqueValueField   *string           `gorm:"column:unique_value_field" json:"unique_value_field"`
 	IsOverlap          bool              `gorm:"column:is_overlap" json:"is_overlap"`
+	IsPermission       bool              `gorm:"column:is_permission" json:"is_permission"`
+	OrgIDField         *string           `gorm:"column:org_id_field" json:"org_id_field"`
 	Layer              *interface{}      `gorm:"-" json:"layer"`
 	Legends            []MapLayerLegends `gorm:"foreignKey:LayerID" json:"legends"`
 }

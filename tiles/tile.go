@@ -6,6 +6,7 @@ import (
 	"github.com/khankhulgun/khanmap/maplayer"
 	"github.com/khankhulgun/khanmap/models"
 	"github.com/lambda-platform/lambda/DB"
+	agentUtils "github.com/lambda-platform/lambda/agent/utils"
 	"log"
 	"math"
 	"os"
@@ -66,7 +67,37 @@ func tileHandler(layer models.MapLayersForTile) fiber.Handler {
 			log.Printf("Invalid tile parameters: %v", err)
 			return c.Status(fiber.StatusBadRequest).SendString("Invalid tile parameters")
 		}
-		mvtData, err := getVectorTile(z, x, y, layer)
+
+		if layer.IsPermission && layer.OrgIDField != nil {
+			user, err := agentUtils.AuthUserObject(c)
+			if err != nil {
+				c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error":  err.Error(),
+					"status": false,
+				})
+			} else {
+				orgID := user["org_id"]
+
+				if orgID != nil {
+					mvtData, err := getVectorTile(z, x, y, layer, orgID)
+
+					if err != nil {
+						log.Printf("Database error: %v", err)
+						return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
+					}
+
+					c.Set("Content-Type", "application/vnd.mapbox-vector-tile")
+					return c.Send(mvtData)
+				} else {
+					c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+						"error":  "access denied",
+						"status": false,
+					})
+				}
+			}
+		}
+
+		mvtData, err := getVectorTile(z, x, y, layer, nil)
 
 		if err != nil {
 			log.Printf("Database error: %v", err)
@@ -77,11 +108,11 @@ func tileHandler(layer models.MapLayersForTile) fiber.Handler {
 		return c.Send(mvtData)
 	}
 }
-func getVectorTile(z, x, y int, layer models.MapLayersForTile) ([]byte, error) {
+func getVectorTile(z, x, y int, layer models.MapLayersForTile, orgConditionValue *interface{}) ([]byte, error) {
 	minX, minY, maxX, maxY := tileToBBox(z, x, y)
 	sqlColumns := maplayer.ConstructSQLColumns(layer, true)
 
-	query := `
+	rawSQL := `
 			SELECT ST_AsMVT(q, ?, ?, ?) FROM (
 				SELECT ` + sqlColumns + `, ST_AsMVTGeom(
 					` + layer.GeometryFieldName + `,
@@ -91,9 +122,18 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile) ([]byte, error) {
 					true
 				) AS ` + layer.GeometryFieldName + `
 				FROM ` + layer.DbSchema + `.` + layer.DbTable + `
-				WHERE ` + layer.GeometryFieldName + ` && ST_MakeEnvelope(?, ?, ?, ?, 4326)
+				WHERE ` + layer.GeometryFieldName + ` && ST_MakeEnvelope(?, ?, ?, ?, 4326) %s
 			) AS q
 		`
+
+	if layer.IsPermission && layer.OrgIDField != nil && orgConditionValue != nil {
+		extraCondition := ` AND ` + *layer.OrgIDField + ` = ` + fmt.Sprintf("%v", *orgConditionValue)
+		rawSQL = fmt.Sprintf(rawSQL, extraCondition)
+	} else {
+		rawSQL = fmt.Sprintf(rawSQL, "")
+	}
+	query := rawSQL
+
 	return fetchTileData(query, layer.DbSchema+"."+layer.DbTable, tileSize, layer.GeometryFieldName, minX, minY, maxX, maxY, tileSize, tileExtent, minX, minY, maxX, maxY)
 
 }
