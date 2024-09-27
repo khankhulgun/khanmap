@@ -108,7 +108,7 @@ func tileHandler(layer models.MapLayersForTile) fiber.Handler {
 		return c.Send(mvtData)
 	}
 }
-func getVectorTile(z, x, y int, layer models.MapLayersForTile, orgConditionValue *interface{}) ([]byte, error) {
+func getVectorTile(z, x, y int, layer models.MapLayersForTile, orgConditionValue interface{}) ([]byte, error) {
 	minX, minY, maxX, maxY := tileToBBox(z, x, y)
 	sqlColumns := maplayer.ConstructSQLColumns(layer, true)
 
@@ -127,7 +127,7 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, orgConditionValue
 		`
 
 	if layer.IsPermission && layer.OrgIDField != nil && orgConditionValue != nil {
-		extraCondition := ` AND ` + *layer.OrgIDField + ` = ` + fmt.Sprintf("%v", *orgConditionValue)
+		extraCondition := ` AND ` + *layer.OrgIDField + ` = ` + fmt.Sprintf("%v", orgConditionValue)
 		rawSQL = fmt.Sprintf(rawSQL, extraCondition)
 	} else {
 		rawSQL = fmt.Sprintf(rawSQL, "")
