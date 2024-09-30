@@ -9,7 +9,8 @@ import (
 
 func Set(app *fiber.App) {
 	app.Get("/tiles/:layer/:z/:x/:y.pbf", tiles.VectorTileHandler)
-	app.Get("/saved-tiles/:layer/:z/:x/:y.pbf", tiles.SaveVectorTileHandler)
+	app.Get("/saved-tiles/:layer/:z/:x/:y.pbf", agentMW.IsLoggedIn(), tiles.SaveVectorTileHandler)
+	app.Get("/saved-tiles/public/:layer/:z/:x/:y.pbf", tiles.SaveVectorTileHandler)
 	app.Get("/save-tile/:layer", tiles.SaveHandler)
 
 	a := app.Group("/mapserver/api")

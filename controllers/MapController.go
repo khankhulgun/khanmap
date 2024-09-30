@@ -26,7 +26,7 @@ func GetMapLayers(c *fiber.Ctx) error {
 	// Adjust preloading to correctly apply ordering to Categories and Layers
 	result := DB.DB.Preload("Categories", func(db *gorm.DB) *gorm.DB {
 		return db.Order("category_order ASC").Where("is_active = ?", true).Preload("Layers", func(db *gorm.DB) *gorm.DB {
-			return db.Order("layer_order ASC").Where("is_active = ?", true).Preload("Legends")
+			return db.Order("layer_order ASC").Where("is_active = ?", true).Preload("Legends").Preload("Permissions")
 		})
 	}).Where("id = ?", id).First(&currentMap)
 

@@ -68,47 +68,43 @@ func tileHandler(layer models.MapLayersForTile) fiber.Handler {
 			return c.Status(fiber.StatusBadRequest).SendString("Invalid tile parameters")
 		}
 
-		if layer.IsPermission && layer.OrgIDField != nil {
+		if layer.IsPermission && layer.OrgIDField != nil && *layer.OrgIDField != "" {
+			user, err := agentUtils.AuthUserObject(c)
+			if err != nil {
+				log.Printf("User not found: %v", err)
+				c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error":  err.Error(),
+					"status": false,
+				})
+			} else {
+				conditionValuePre := user["org_id"]
 
-			if *layer.OrgIDField != "" {
-				user, err := agentUtils.AuthUserObject(c)
-				if err != nil {
-					c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-						"error":  err.Error(),
-						"status": false,
-					})
-				} else {
-					conditionValuePre := user["org_id"]
+				if conditionValuePre != nil {
+					conditionValue := fmt.Sprintf("%v", conditionValuePre)
 
-					if conditionValuePre != nil {
-
-						conditionValue := fmt.Sprintf("%v", conditionValuePre)
-
-						if conditionValue == "" {
-							c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-								"error":  "access denied",
-								"status": false,
-							})
-						}
-
-						mvtData, err := getVectorTile(z, x, y, layer, fmt.Sprintf("%v", conditionValue))
-
-						if err != nil {
-							log.Printf("Database error: %v", err)
-							return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
-						}
-
-						c.Set("Content-Type", "application/vnd.mapbox-vector-tile")
-						return c.Send(mvtData)
-					} else {
+					if conditionValue == "" {
 						c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 							"error":  "access denied",
 							"status": false,
 						})
 					}
+
+					mvtData, err := getVectorTile(z, x, y, layer, fmt.Sprintf("%v", conditionValue))
+
+					if err != nil {
+						log.Printf("Database error: %v", err)
+						return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
+					}
+
+					c.Set("Content-Type", "application/vnd.mapbox-vector-tile")
+					return c.Send(mvtData)
+				} else {
+					c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+						"error":  "access denied",
+						"status": false,
+					})
 				}
 			}
-
 		}
 
 		mvtData, err := getVectorTile(z, x, y, layer, "")
@@ -122,6 +118,7 @@ func tileHandler(layer models.MapLayersForTile) fiber.Handler {
 		return c.Send(mvtData)
 	}
 }
+
 func getVectorTile(z, x, y int, layer models.MapLayersForTile, orgConditionValue string) ([]byte, error) {
 	minX, minY, maxX, maxY := tileToBBox(z, x, y)
 	sqlColumns := maplayer.ConstructSQLColumns(layer, true)
@@ -140,17 +137,16 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, orgConditionValue
 			) AS q
 		`
 
-	if layer.IsPermission && layer.OrgIDField != nil && orgConditionValue != "" {
-		extraCondition := ` AND ` + *layer.OrgIDField + ` = ` + orgConditionValue
-		rawSQL = fmt.Sprintf(rawSQL, extraCondition)
-	} else {
-		rawSQL = fmt.Sprintf(rawSQL, "")
-	}
 	query := rawSQL
-
-	return fetchTileData(query, layer.DbSchema+"."+layer.DbTable, tileSize, layer.GeometryFieldName, minX, minY, maxX, maxY, tileSize, tileExtent, minX, minY, maxX, maxY)
-
+	if orgConditionValue != "" {
+		query = fmt.Sprintf(query, `AND `+*layer.OrgIDField+` = ?`)
+		return fetchTileData(query, layer.DbSchema+"."+layer.DbTable, tileSize, layer.GeometryFieldName, minX, minY, maxX, maxY, tileSize, tileExtent, minX, minY, maxX, maxY, orgConditionValue)
+	} else {
+		query = fmt.Sprintf(query, "")
+		return fetchTileData(query, layer.DbSchema+"."+layer.DbTable, tileSize, layer.GeometryFieldName, minX, minY, maxX, maxY, tileSize, tileExtent, minX, minY, maxX, maxY)
+	}
 }
+
 func SaveVectorTileHandler(c *fiber.Ctx) error {
 	layer := c.Params("layer")
 	z := c.Params("z")
