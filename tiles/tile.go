@@ -1,12 +1,13 @@
 package tiles
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt"
 	"github.com/khankhulgun/khanmap/maplayer"
 	"github.com/khankhulgun/khanmap/models"
 	"github.com/lambda-platform/lambda/DB"
-	agentUtils "github.com/lambda-platform/lambda/agent/utils"
 	"log"
 	"math"
 	"os"
@@ -60,7 +61,7 @@ func fetchTileData(query string, args ...interface{}) ([]byte, error) {
 	return mvtData, nil
 }
 
-func tileHandler(layer models.MapLayersForTile) fiber.Handler {
+func tileHandler(layer models.MapLayersForTile, orgID string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		z, x, y, err := parseTileParams(c)
 		if err != nil {
@@ -68,46 +69,7 @@ func tileHandler(layer models.MapLayersForTile) fiber.Handler {
 			return c.Status(fiber.StatusBadRequest).SendString("Invalid tile parameters")
 		}
 
-		if layer.IsPermission && layer.OrgIDField != nil && *layer.OrgIDField != "" {
-			user, err := agentUtils.AuthUserObject(c)
-			if err != nil {
-				log.Printf("User not found: %v", err)
-				c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-					"error":  err.Error(),
-					"status": false,
-				})
-			} else {
-				conditionValuePre := user["org_id"]
-
-				if conditionValuePre != nil {
-					conditionValue := fmt.Sprintf("%v", conditionValuePre)
-
-					if conditionValue == "" {
-						c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-							"error":  "access denied",
-							"status": false,
-						})
-					}
-
-					mvtData, err := getVectorTile(z, x, y, layer, fmt.Sprintf("%v", conditionValue))
-
-					if err != nil {
-						log.Printf("Database error: %v", err)
-						return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
-					}
-
-					c.Set("Content-Type", "application/vnd.mapbox-vector-tile")
-					return c.Send(mvtData)
-				} else {
-					c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-						"error":  "access denied",
-						"status": false,
-					})
-				}
-			}
-		}
-
-		mvtData, err := getVectorTile(z, x, y, layer, "")
+		mvtData, err := getVectorTile(z, x, y, layer, orgID)
 
 		if err != nil {
 			log.Printf("Database error: %v", err)
@@ -138,7 +100,8 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, orgConditionValue
 		`
 
 	query := rawSQL
-	if orgConditionValue != "" {
+
+	if layer.IsPermission && layer.OrgIDField != nil && *layer.OrgIDField != "" && orgConditionValue != "" {
 		query = fmt.Sprintf(query, `AND `+*layer.OrgIDField+` = ?`)
 		return fetchTileData(query, layer.DbSchema+"."+layer.DbTable, tileSize, layer.GeometryFieldName, minX, minY, maxX, maxY, tileSize, tileExtent, minX, minY, maxX, maxY, orgConditionValue)
 	} else {
@@ -169,7 +132,7 @@ func SaveVectorTileHandler(c *fiber.Ctx) error {
 		return c.SendFile(tilePath)
 	}
 
-	return tileHandler(layerDetails)(c)
+	return tileHandler(layerDetails, "")(c)
 }
 
 func SaveHandler(c *fiber.Ctx) error {
@@ -187,10 +150,55 @@ func SaveHandler(c *fiber.Ctx) error {
 
 func VectorTileHandler(c *fiber.Ctx) error {
 	layer := c.Params("layer")
+
 	layerDetails, err := maplayer.FetchLayerDetails(layer)
 	if err != nil {
 		log.Printf("Layer not found: %v", err)
 		return c.Status(fiber.StatusNotFound).SendString("Layer not found")
 	}
-	return tileHandler(layerDetails)(c)
+
+	return tileHandler(layerDetails, "")(c)
+}
+
+func VectorTileHandlerWithToken(c *fiber.Ctx) error {
+	layer := c.Params("layer")
+	tokenString := c.Params("token")
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Println("JWT secret not set")
+		return c.Status(fiber.StatusInternalServerError).SendString("Server configuration error")
+	}
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+		return []byte(jwtSecret), nil
+	})
+
+	if err != nil {
+		log.Printf("Invalid token: %v", err)
+		return c.Status(fiber.StatusUnauthorized).SendString(err.Error())
+	}
+
+	var orgID string
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		if claim, ok := claims["org_id"].(string); ok {
+			orgID = claim
+		} else {
+			log.Println("Invalid or missing 'org_id' claim in token")
+			return c.Status(fiber.StatusUnauthorized).SendString("Invalid token claims")
+		}
+	} else {
+		return c.Status(fiber.StatusUnauthorized).SendString("Invalid token")
+	}
+
+	layerDetails, err := maplayer.FetchLayerDetails(layer)
+	if err != nil {
+		log.Printf("Layer not found: %v", err)
+		return c.Status(fiber.StatusNotFound).SendString("Layer not found")
+	}
+
+	return tileHandler(layerDetails, orgID)(c)
 }
