@@ -16,7 +16,7 @@ type Map struct {
 }
 
 func (m *Map) TableName() string {
-	return "public.map"
+	return "map_server.map"
 }
 
 type ViewMapLayerCategories struct {
@@ -31,7 +31,7 @@ type ViewMapLayerCategories struct {
 }
 
 func (v *ViewMapLayerCategories) TableName() string {
-	return "public.view_map_layer_categories"
+	return "map_server.view_map_layer_categories"
 }
 
 type SubMapLayerCategories struct {
@@ -42,5 +42,5 @@ type SubMapLayerCategories struct {
 }
 
 func (s *SubMapLayerCategories) TableName() string {
-	return "public.sub_map_layer_categories"
+	return "map_server.sub_map_layer_categories"
 }
