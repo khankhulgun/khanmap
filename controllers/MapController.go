@@ -47,13 +47,12 @@ func GetMapLayers(c *fiber.Ctx) error {
 		})
 	}
 
-	mapstyle, _ := generateVectorTileStyle(currentMap.Categories)
+	mapStyle, _ := generateVectorTileStyle(currentMap.Categories)
 
-	currentMap.Version = mapstyle.Version
-	currentMap.Layers = mapstyle.Layers
-	currentMap.Sources = mapstyle.Sources
-	currentMap.Sprite = mapstyle.Sprite
-	// Return the map layer as JSON
+	currentMap.Version = mapStyle.Version
+	currentMap.Layers = mapStyle.Layers
+	currentMap.Sources = mapStyle.Sources
+	currentMap.Sprite = mapStyle.Sprite
 	return c.JSON(currentMap)
 }
 
