@@ -65,7 +65,8 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 
 		for _, layer := range category.Layers {
 
-			style.Sources[layer.IDFieldname] = models.VectorSource{
+			style.Sources[layer.ID] = models.VectorSource{
+
 				Type:  "vector",
 				Tiles: []string{"https://riskmapping.mn/tiles/" + layer.ID + "/{z}/{x}/{y}.pbf"},
 			}
@@ -100,6 +101,7 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 					if layer.Legends[0].FillColor != nil {
 						lineLayer := models.LineLayer{
 							ID:          layer.ID,
+							Type:        "line",
 							Source:      layer.ID, // Use category source
 							SourceLayer: layer.DbSchema + "." + layer.DbTable,
 							Paint: models.LineLayerPaint{
@@ -117,6 +119,7 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 					if layer.Legends[0].FillColor != nil && layer.Legends[0].StrokeColor != nil {
 						fillLayer := models.FillLayer{
 							ID:          layer.ID,
+							Type:        "fill",
 							Source:      layer.ID, // Use category source
 							SourceLayer: layer.DbSchema + "." + layer.DbTable,
 							Paint: models.FillLayerPaint{
@@ -128,6 +131,7 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 
 						lineLayer := models.LineLayer{
 							ID:          layer.ID,
+							Type:        "line",
 							Source:      layer.ID, // Use category source
 							SourceLayer: layer.DbSchema + "." + layer.DbTable,
 							Paint: models.LineLayerPaint{
