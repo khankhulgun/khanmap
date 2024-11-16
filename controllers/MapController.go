@@ -47,6 +47,101 @@ func GetMapLayers(c *fiber.Ctx) error {
 		})
 	}
 
+	mapstyle, _ := generateVectorTileStyle(currentMap.Categories)
+
+	currentMap.Version = mapstyle.Version
+	currentMap.Layers = mapstyle.Layers
+	currentMap.Sources = mapstyle.Sources
+	currentMap.Sprite = mapstyle.Sprite
 	// Return the map layer as JSON
 	return c.JSON(currentMap)
+}
+
+func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models.VectorTileStyle, error) {
+	var style models.VectorTileStyle
+
+	// Initialize sources with error handling
+	style.Sources = map[string]models.VectorSource{}
+	for _, category := range categories {
+
+		for _, layer := range category.Layers {
+
+			style.Sources[layer.IDFieldname] = models.VectorSource{
+				Type:  "vector",
+				Tiles: []string{"https://riskmapping.mn/tiles/" + layer.ID + "/{z}/{x}/{y}.pbf"},
+			}
+		}
+
+	}
+
+	// Iterate through categories and layers, defining styles based on geometry type
+	for _, category := range categories {
+		for _, layer := range category.Layers {
+			switch layer.GeometryType {
+			case "Point":
+				// Define point layer style using category icon and other properties
+				//pointSymbol := models.PointLayerSymbol{
+				//	ID:          layer.ID,
+				//	Source:      category.IDFieldName, // Use category source
+				//	SourceLayer: layer.IDFieldName,
+				//	Layout: models.PointLayerSymbolLayout{
+				//		IconImage:           category.Icon,
+				//		IconSize:            1.0,
+				//		IconAllowOverlap:    true,
+				//		IconIgnorePlacement: true,
+				//	},
+				//	Paint: models.PointLayerSymbolPaint{
+				//		IconColor: "#000000", // Replace with desired color
+				//	},
+				//}
+				//style.PointLayerSymbols = append(style.PointLayerSymbols, pointSymbol)
+			case "LineString":
+				// Define line layer style using line color, width, and other properties
+				if len(layer.Legends) >= 1 {
+					if layer.Legends[0].FillColor != nil {
+						lineLayer := models.LineLayer{
+							ID:          layer.ID,
+							Source:      layer.ID, // Use category source
+							SourceLayer: layer.DbSchema + "." + layer.DbTable,
+							Paint: models.LineLayerPaint{
+								LineColor: *layer.Legends[0].FillColor,
+								LineWidth: 2.0,
+							},
+						}
+						style.Layers = append(style.Layers, lineLayer)
+					}
+
+				}
+
+			case "Polygon":
+				if len(layer.Legends) >= 1 {
+					if layer.Legends[0].FillColor != nil && layer.Legends[0].StrokeColor != nil {
+						fillLayer := models.FillLayer{
+							ID:          layer.ID,
+							Source:      layer.ID, // Use category source
+							SourceLayer: layer.DbSchema + "." + layer.DbTable,
+							Paint: models.FillLayerPaint{
+								FillColor:   *layer.Legends[0].FillColor,
+								FillOpacity: 0.6,
+							},
+						}
+						style.Layers = append(style.Layers, fillLayer)
+
+						lineLayer := models.LineLayer{
+							ID:          layer.ID,
+							Source:      layer.ID, // Use category source
+							SourceLayer: layer.DbSchema + "." + layer.DbTable,
+							Paint: models.LineLayerPaint{
+								LineColor: *layer.Legends[0].StrokeColor,
+								LineWidth: 2.0,
+							},
+						}
+						style.Layers = append(style.Layers, lineLayer)
+					}
+				}
+			}
+		}
+	}
+
+	return style, nil
 }

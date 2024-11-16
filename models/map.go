@@ -13,6 +13,10 @@ type Map struct {
 	UpdatedAt   time.Time                `gorm:"column:updated_at" json:"-"`
 	DeletedAt   gorm.DeletedAt           `gorm:"column:deleted_at" json:"-"`
 	Categories  []ViewMapLayerCategories `gorm:"foreignKey:MapID" json:"categories"`
+	Version     int                      `gorm:"-" json:"version"`
+	Sources     map[string]VectorSource  `gorm:"-" json:"sources"`
+	Sprite      string                   `gorm:"-" json:"sprite"`
+	Layers      []any                    `gorm:"-" json:"layers"`
 }
 
 func (m *Map) TableName() string {
