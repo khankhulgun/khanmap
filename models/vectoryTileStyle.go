@@ -47,6 +47,7 @@ type SymbolLayer struct {
 	Source      string            `json:"source"`
 	SourceLayer string            `json:"source-layer"`
 	Layout      SymbolLayerLayout `json:"layout"`
+	Paint       SymbolLayerPaint  `json:"paint"`
 }
 
 type SymbolLayerLayout struct {

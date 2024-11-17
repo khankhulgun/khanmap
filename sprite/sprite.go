@@ -86,6 +86,7 @@ func saveImage(img image.Image, filename string) {
 	if err := png.Encode(outFile, img); err != nil {
 		log.Fatalf("Failed to encode PNG: %v", err)
 	}
+
 }
 
 func saveJSON(meta map[string]models.SpriteMeta, filename string) {

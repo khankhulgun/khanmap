@@ -150,6 +150,9 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 								IconAllowOverlap:    true,
 								IconIgnorePlacement: true,
 							},
+							Paint: models.SymbolLayerPaint{
+								IconColor: "#000000",
+							},
 						}
 						style.Layers = append(style.Layers, pointSymbol)
 
