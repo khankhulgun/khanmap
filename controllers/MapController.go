@@ -61,7 +61,7 @@ func GetMapLayers(c *fiber.Ctx) error {
 	currentMap.Version = mapStyle.Version
 	currentMap.Layers = mapStyle.Layers
 	currentMap.Sources = mapStyle.Sources
-	currentMap.Sprite = config.LambdaConfig.Domain + "/map/sprite/" + id
+	currentMap.Sprite = config.LambdaConfig.Domain + "/map/" + id + "/sprite/" + id
 
 	if generate == "true" {
 		if generateErr != nil {
