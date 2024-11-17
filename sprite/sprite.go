@@ -48,7 +48,7 @@ func MakeSprite(srcDir, destFile string) {
 			Y:          0,
 			Width:      width,
 			Height:     height,
-			PixelRatio: 1,
+			PixelRatio: 2,
 		}
 		spriteWidth += width
 		if height > maxHeight {
