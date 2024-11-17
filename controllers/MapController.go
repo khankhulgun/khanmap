@@ -139,6 +139,7 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 				// Define line layer style using line color, width, and other properties
 				if len(layer.Legends) >= 1 {
 					if layer.Legends[0].Marker != nil {
+
 						pointSymbol := models.SymbolLayer{
 							ID:          layer.ID,
 							Type:        "symbol",
@@ -148,7 +149,8 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 								IconImage:           layer.ID,
 								IconSize:            1.0,
 								IconAllowOverlap:    true,
-								IconIgnorePlacement: true,
+								IconIgnorePlacement: false,
+								IconOffset:          []int{0, 0},
 							},
 							Paint: models.SymbolLayerPaint{
 								IconColor: "#000000",

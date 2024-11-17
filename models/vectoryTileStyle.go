@@ -55,6 +55,7 @@ type SymbolLayerLayout struct {
 	IconSize            float64 `json:"icon-size"`
 	IconAllowOverlap    bool    `json:"icon-allow-overlap"`
 	IconIgnorePlacement bool    `json:"icon-ignore-placement"`
+	IconOffset          []int   `json:"icon-offset"`
 }
 
 type SymbolLayerPaint struct {
