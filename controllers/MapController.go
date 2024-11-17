@@ -1,17 +1,26 @@
 package controllers
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/khankhulgun/khanmap/models"
+	"github.com/khankhulgun/khanmap/sprite"
 	"github.com/lambda-platform/lambda/DB"
+	"github.com/lambda-platform/lambda/config"
 	"gorm.io/gorm"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 func GetMapLayers(c *fiber.Ctx) error {
 
 	// Get the 'id' parameter from the URL
 	id := c.Params("id")
+	generate := c.Query("generate")
 	if id == "" {
 		// Return a 400 Bad Request error if no ID is provided
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -47,12 +56,58 @@ func GetMapLayers(c *fiber.Ctx) error {
 		})
 	}
 
-	mapStyle, _ := generateVectorTileStyle(currentMap.Categories)
+	mapStyle, generateErr := generateVectorTileStyle(currentMap.Categories)
 
 	currentMap.Version = mapStyle.Version
 	currentMap.Layers = mapStyle.Layers
 	currentMap.Sources = mapStyle.Sources
-	currentMap.Sprite = mapStyle.Sprite
+	currentMap.Sprite = config.LambdaConfig.Domain + "/map/sprite/" + id
+
+	if generate == "true" {
+		if generateErr != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status": "error",
+				"error":  generateErr.Error(),
+			})
+		}
+		// Create the JSON output path
+		outputDir := "./public/map"
+		err := os.MkdirAll(outputDir, os.ModePerm) // Ensure the directory exists
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status":  "error",
+				"message": "Error creating output directory",
+				"error":   err.Error(),
+			})
+		}
+
+		// Define the output file path
+		outputFile := filepath.Join(outputDir, fmt.Sprintf("%s.json", id))
+
+		// Serialize the currentMap object to JSON
+		file, err := os.Create(outputFile)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status":  "error",
+				"message": "Error creating JSON file",
+				"error":   err.Error(),
+			})
+		}
+		defer file.Close()
+
+		encoder := json.NewEncoder(file)
+		encoder.SetIndent("", "  ") // Pretty-print JSON if desired
+		if err := encoder.Encode(currentMap); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status":  "error",
+				"message": "Error writing JSON file",
+				"error":   err.Error(),
+			})
+		}
+
+		sprite.MakeSprite(fmt.Sprintf("./public/map/%s/sprite/images", id), fmt.Sprintf("./public/map/%s/sprite/%s", id, id))
+	}
+
 	return c.JSON(currentMap)
 }
 
@@ -61,6 +116,7 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 
 	// Initialize sources with error handling
 	style.Sources = map[string]models.VectorSource{}
+
 	for _, category := range categories {
 
 		for _, layer := range category.Layers {
@@ -79,22 +135,66 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 		for _, layer := range category.Layers {
 			switch layer.GeometryType {
 			case "Point":
-				// Define point layer style using category icon and other properties
-				//pointSymbol := models.PointLayerSymbol{
-				//	ID:          layer.ID,
-				//	Source:      category.IDFieldName, // Use category source
-				//	SourceLayer: layer.IDFieldName,
-				//	Layout: models.PointLayerSymbolLayout{
-				//		IconImage:           category.Icon,
-				//		IconSize:            1.0,
-				//		IconAllowOverlap:    true,
-				//		IconIgnorePlacement: true,
-				//	},
-				//	Paint: models.PointLayerSymbolPaint{
-				//		IconColor: "#000000", // Replace with desired color
-				//	},
-				//}
-				//style.PointLayerSymbols = append(style.PointLayerSymbols, pointSymbol)
+
+				// Define line layer style using line color, width, and other properties
+				if len(layer.Legends) >= 1 {
+					if layer.Legends[0].Marker != nil {
+						pointSymbol := models.SymbolLayer{
+							ID:          layer.ID,
+							Type:        "symbol",
+							Source:      layer.ID, // Use category source
+							SourceLayer: layer.DbSchema + "." + layer.DbTable,
+							Layout: models.SymbolLayerLayout{
+								IconImage:           layer.ID,
+								IconSize:            1.0,
+								IconAllowOverlap:    true,
+								IconIgnorePlacement: true,
+							},
+						}
+						style.Layers = append(style.Layers, pointSymbol)
+
+						// Define the output directory
+						outputDir := fmt.Sprintf("./public/map/%s/sprite/images", category.MapID)
+						err := os.MkdirAll(outputDir, os.ModePerm) // Ensure directory exists
+						if err != nil {
+							return style, errors.New("Error creating output directory")
+						}
+
+						// Assuming `markerPath` contains the path to the marker file (e.g., "path/to/marker.svg" or "path/to/marker.png")
+						markerPath := *layer.Legends[0].Marker                      // Example: Assuming `layer.Marker` contains the file path to the marker
+						outputFile := fmt.Sprintf("%s/%s.png", outputDir, layer.ID) // Define output file name
+
+						// Check if the marker is an SVG
+						if strings.HasSuffix(markerPath, ".svg") {
+							// Convert SVG to PNG
+
+							err = sprite.SVGToPNG("./public"+markerPath, outputFile)
+							if err != nil {
+								return style, errors.New("Error converting SVG to PNG")
+							}
+						} else if strings.HasSuffix(markerPath, ".png") {
+							// Copy the PNG marker to the target location
+							input, err := os.Open(markerPath)
+							if err != nil {
+								return style, errors.New("Error opening marker file")
+							}
+							defer input.Close()
+
+							output, err := os.Create(outputFile)
+							if err != nil {
+								return style, errors.New("Error creating output file")
+							}
+							defer output.Close()
+
+							_, err = io.Copy(output, input)
+							if err != nil {
+								return style, errors.New("Error copying marker file")
+							}
+						} else {
+							return style, errors.New("Unsupported marker file format")
+						}
+					}
+				}
 			case "LineString":
 				// Define line layer style using line color, width, and other properties
 				if len(layer.Legends) >= 1 {
