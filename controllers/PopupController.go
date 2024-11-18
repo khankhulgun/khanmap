@@ -28,8 +28,11 @@ func GetMapData(c *fiber.Ctx) error {
 		})
 	}
 
-	// Prepare results container
-	var results []map[string]interface{}
+	// Prepare results container with group structure
+	groupedResults := make(map[string]struct {
+		LayerName string                   `json:"layer_name"`
+		Features  []map[string]interface{} `json:"features"`
+	})
 
 	// Loop through each layer ID and perform a query
 	for _, layerID := range input.Layers {
@@ -56,10 +59,33 @@ func GetMapData(c *fiber.Ctx) error {
 			})
 		}
 
-		// Append results for this layer
-		results = append(results, layerResults...)
+		// Group results by layerID
+		if _, exists := groupedResults[layerID]; !exists {
+			groupedResults[layerID] = struct {
+				LayerName string                   `json:"layer_name"`
+				Features  []map[string]interface{} `json:"features"`
+			}{
+				LayerName: layerDetails.LayerTitle, // Assuming LayerTitle contains the layer's name
+				Features:  []map[string]interface{}{},
+			}
+		}
+
+		// Append the features to the appropriate group
+		group := groupedResults[layerID]
+		group.Features = append(group.Features, layerResults...)
+		groupedResults[layerID] = group
 	}
 
-	// Return the combined results
-	return c.JSON(results)
+	// Convert map to a slice of grouped results for output
+	var output []map[string]interface{}
+	for layerID, group := range groupedResults {
+		output = append(output, map[string]interface{}{
+			"layer_id":   layerID,
+			"layer_name": group.LayerName,
+			"features":   group.Features,
+		})
+	}
+
+	// Return the grouped results
+	return c.JSON(output)
 }
