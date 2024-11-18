@@ -79,11 +79,13 @@ func GetMapData(c *fiber.Ctx) error {
 	// Convert map to a slice of grouped results for output
 	var output []map[string]interface{}
 	for layerID, group := range groupedResults {
-		output = append(output, map[string]interface{}{
-			"layer_id":   layerID,
-			"layer_name": group.LayerName,
-			"features":   group.Features,
-		})
+		if len(group.Features) >= 1 {
+			output = append(output, map[string]interface{}{
+				"layer_id":   layerID,
+				"layer_name": group.LayerName,
+				"features":   group.Features,
+			})
+		}
 	}
 
 	// Return the grouped results
