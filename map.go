@@ -20,5 +20,6 @@ func Set(app *fiber.App) {
 	a.Get("/map/:id", controllers.GetMapLayers)
 
 	a.Post("/spatial/:layer/:relationship", controllers.Spatial)
+	a.Post("/map-data", controllers.GetMapData)
 
 }
