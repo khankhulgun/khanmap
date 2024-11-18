@@ -28,6 +28,9 @@ func GetMapData(c *fiber.Ctx) error {
 		})
 	}
 
+	// Buffer size in meters for Point and LineString geometries (adjust as needed)
+	const bufferSize = 50.0 // Example buffer size in meters
+
 	// Prepare results container with group structure
 	groupedResults := make(map[string]struct {
 		LayerName string                   `json:"layer_name"`
@@ -45,12 +48,19 @@ func GetMapData(c *fiber.Ctx) error {
 			})
 		}
 
-		// Construct the spatial query using the location
+		// Determine if buffering is needed for precision
+		queryGeometry := input.Geometry
+		if layerDetails.GeometryType == "LineString" || layerDetails.GeometryType == "Point" {
+			// Apply buffering to the input geometry for better spatial matching
+			queryGeometry = fmt.Sprintf("ST_Buffer(ST_GeomFromText('%s', 4326)::geography, %f)::geometry", input.Geometry, bufferSize)
+		}
+
+		// Construct the spatial query using the buffered or original location
 		sqlFunction := "ST_Intersects" // Example spatial function
-		query := spatial.BuildSpatialQuery(layerDetails, sqlFunction, input.Geometry, false)
+		query := spatial.BuildSpatialQuery(layerDetails, sqlFunction, queryGeometry, false)
 
 		// Execute the query
-		layerResults, err := spatial.ExecuteSpatialQuery(query, input.Geometry)
+		layerResults, err := spatial.ExecuteSpatialQuery(query, queryGeometry)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"status":  "error",
