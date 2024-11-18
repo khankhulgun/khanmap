@@ -5,6 +5,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/khankhulgun/khanmap/maplayer"
 	"github.com/khankhulgun/khanmap/spatial"
+	"strings"
 )
 
 func GetMapData(c *fiber.Ctx) error {
@@ -28,8 +29,16 @@ func GetMapData(c *fiber.Ctx) error {
 		})
 	}
 
+	// Additional check to ensure input.Geometry is valid
+	if !strings.HasPrefix(input.Geometry, "POINT(") && !strings.HasPrefix(input.Geometry, "LINESTRING(") && !strings.HasPrefix(input.Geometry, "POLYGON(") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Invalid geometry format",
+		})
+	}
+
 	// Buffer size in meters for Point and LineString geometries (adjust as needed)
-	const bufferSize = 50.0 // Example buffer size in meters
+	const bufferSize = 60.0 // Example buffer size in meters
 
 	// Prepare results container with group structure
 	groupedResults := make(map[string]struct {
@@ -55,10 +64,14 @@ func GetMapData(c *fiber.Ctx) error {
 			queryGeometry = fmt.Sprintf("ST_Buffer(ST_GeomFromText('%s', 4326)::geography, %f)::geometry", input.Geometry, bufferSize)
 		}
 
-		// Construct the spatial query using the buffered or original location
 		sqlFunction := "ST_Intersects" // Example spatial function
 		query := spatial.BuildSpatialQuery(layerDetails, sqlFunction, queryGeometry, false)
 
+		if layerDetails.GeometryType == "LineString" || layerDetails.GeometryType == "Point" {
+			query = spatial.BuildSpatialQueryWithFromText(layerDetails, sqlFunction, queryGeometry, false)
+
+			queryGeometry = ""
+		}
 		// Execute the query
 		layerResults, err := spatial.ExecuteSpatialQuery(query, queryGeometry)
 		if err != nil {
