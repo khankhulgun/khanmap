@@ -80,6 +80,7 @@ type MapLayerLegends struct {
 	UniqueValueLabel *string `gorm:"column:unique_value_label" json:"unique_value_label"`
 	UniqueVisible    bool    `gorm:"column:unique_visible" json:"unique_visible"`
 	StrokeColor      *string `gorm:"column:stroke_color" json:"stroke_color"`
+	LegendOrder      *string `gorm:"column:legend_order" json:"legend_order"`
 }
 
 func (m *MapLayerLegends) TableName() string {
