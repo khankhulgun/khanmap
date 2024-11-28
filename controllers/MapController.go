@@ -124,7 +124,7 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 			style.Sources[layer.ID] = models.VectorSource{
 
 				Type:  "vector",
-				Tiles: []string{"https://riskmapping.mn/tiles/" + layer.ID + "/{z}/{x}/{y}.pbf"},
+				Tiles: []string{config.LambdaConfig.Domain + "/tiles/" + layer.ID + "/{z}/{x}/{y}.pbf"},
 			}
 		}
 
