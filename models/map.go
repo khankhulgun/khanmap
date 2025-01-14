@@ -6,7 +6,7 @@ import (
 )
 
 type Map struct {
-	ID          string                   `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	ID          string                   `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	Map         string                   `gorm:"column:map" json:"map"`
 	Description *string                  `gorm:"column:description" json:"description"`
 	CreatedAt   time.Time                `gorm:"column:created_at" json:"-"`
@@ -39,9 +39,9 @@ func (v *ViewMapLayerCategories) TableName() string {
 }
 
 type SubMapLayerCategories struct {
-	ID            string `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
-	MapID         string `gorm:"column:map_id" json:"map_id"`
-	MapCategoryID string `gorm:"column:map_category_id" json:"map_category_id"`
+	ID            string `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	MapID         string `gorm:"column:map_id;type:uuid" json:"map_id"`
+	MapCategoryID string `gorm:"column:map_category_id;type:uuid" json:"map_category_id"`
 	CategoryOrder int    `gorm:"column:category_order" json:"category_order"`
 }
 

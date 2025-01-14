@@ -1,7 +1,7 @@
 package models
 
 type MapLayersForTile struct {
-	ID                 string  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	ID                 string  `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	DbTable            string  `gorm:"column:db_table" json:"db_table"`
 	GeometryType       string  `gorm:"column:geometry_type" json:"geometry_type"`
 	GeometryFieldName  string  `gorm:"column:geometry_fieldname" json:"geometry_fieldname"`
@@ -12,7 +12,7 @@ type MapLayersForTile struct {
 	IsPublic           bool    `gorm:"column:is_public" json:"is_public"`
 	IsVisible          bool    `gorm:"column:is_visible" json:"is_visible"`
 	LayerOrder         int     `gorm:"column:layer_order" json:"layer_order"`
-	MapLayerCategoryID string  `gorm:"column:map_layer_category_id" json:"map_layer_category_id"`
+	MapLayerCategoryID string  `gorm:"column:map_layer_category_id;type:uuid" json:"map_layer_category_id"`
 	LayerTitle         string  `gorm:"column:layer_title" json:"layer_title"`
 	Description        *string `gorm:"column:description" json:"description"`
 	PopupTemplate      *string `gorm:"column:popup_template" json:"popup_template"`
@@ -27,7 +27,7 @@ func (m *MapLayersForTile) TableName() string {
 }
 
 type MapLayerCategory struct {
-	ID            string      `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	ID            string      `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	Icon          string      `gorm:"column:icon" json:"icon"`
 	IsActive      bool        `gorm:"column:is_active" json:"is_active"`
 	IsVisible     bool        `gorm:"column:is_visible" json:"is_visible"`
@@ -40,7 +40,7 @@ func (m *MapLayerCategory) TableName() string {
 }
 
 type MapLayers struct {
-	ID                 string                   `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	ID                 string                   `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	DbTable            string                   `gorm:"column:db_table" json:"-"`
 	GeometryType       string                   `gorm:"column:geometry_type" json:"geometry_type"`
 	GeometryFieldname  string                   `gorm:"column:geometry_fieldname" json:"geometry_fieldname"`
@@ -69,8 +69,8 @@ func (m *MapLayers) TableName() string {
 }
 
 type MapLayerLegends struct {
-	ID               string  `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
-	LayerID          string  `gorm:"column:layer_id" json:"layer_id"`
+	ID               string  `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	LayerID          string  `gorm:"column:layer_id;type:uuid" json:"layer_id"`
 	GeometryType     string  `gorm:"column:geometry_type" json:"geometry_type"`
 	FillColor        *string `gorm:"column:fill_color" json:"fill_color"`
 	Marker           *string `gorm:"column:marker" json:"marker"`
@@ -88,8 +88,8 @@ func (m *MapLayerLegends) TableName() string {
 }
 
 type SubMapLayerPermissions struct {
-	ID      string `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
-	LayerID string `gorm:"column:layer_id" json:"layer_id"`
+	ID      string `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	LayerID string `gorm:"column:layer_id;type:uuid" json:"layer_id"`
 	RoleID  int    `gorm:"column:role_id" json:"role_id"`
 }
 
