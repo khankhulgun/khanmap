@@ -83,4 +83,6 @@ func Migrate() {
 		log.Fatalf("Failed to create view: %v", err)
 	}
 
+	MigrateLookupTables()
+
 }

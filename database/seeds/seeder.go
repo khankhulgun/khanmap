@@ -35,7 +35,9 @@ func Seed() {
 		log.Fatalf("Failed to seed data: %v", err)
 	}
 
+	SeedLookupTables()
 	fmt.Println("Seed data successfully loaded and updated into the database.")
+
 }
 
 // LoadVBSchemas loads the vb_schemas.json file and unmarshals it into a slice of VBSchema
