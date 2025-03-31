@@ -65,7 +65,18 @@ func GetMapLayers(c *fiber.Ctx) error {
 	currentMap.Version = mapStyle.Version
 	currentMap.Layers = mapStyle.Layers
 	currentMap.Sources = mapStyle.Sources
-	currentMap.Sprite = config.LambdaConfig.Domain + "/map/" + id + "/sprite/" + id
+
+	spriteURL := config.LambdaConfig.Domain + "/map/" + id + "/sprite/" + id
+
+	// Check if the sprite URL already starts with http:// or https://
+	hasProtocol := strings.HasPrefix(spriteURL, "http://") || strings.HasPrefix(spriteURL, "https://")
+
+	if !hasProtocol {
+		// If no protocol, prepend https://
+		currentMap.Sprite = "https://" + spriteURL
+	} else {
+		currentMap.Sprite = spriteURL
+	}
 
 	if generate == "true" {
 		if generateErr != nil {
