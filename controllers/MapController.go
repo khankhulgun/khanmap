@@ -136,6 +136,13 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 
 		for _, layer := range category.Layers {
 
+			baseUrl := config.LambdaConfig.Domain
+			hasProtocol := strings.HasPrefix(baseUrl, "http://") || strings.HasPrefix(baseUrl, "https://")
+
+			if !hasProtocol {
+				// If no protocol, prepend https://
+				baseUrl = "https://" + baseUrl
+			}
 			style.Sources[layer.ID] = models.VectorSource{
 
 				Type:  "vector",
