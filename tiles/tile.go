@@ -108,9 +108,10 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{})
 	if layer.IsPermission {
 		if len(layer.Permissions) > 0 {
 			roleVal, ok := userMap["role"]
-			roleInt, isInt := roleVal.(int)
-			if !ok || !isInt {
-				return nil, errors.New("user role is missing or not an int")
+			roleFloat, isFloat := roleVal.(float64)
+			roleInt := int(roleFloat)
+			if !ok || !isFloat {
+				return nil, errors.New("user role is missing or not a float")
 			}
 
 			hasPermission := false
@@ -130,7 +131,7 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{})
 			if !ok {
 				continue
 			}
-			filterConditions = append(filterConditions, fmt.Sprintf("AND %s = ?", filter.TableName))
+			filterConditions = append(filterConditions, fmt.Sprintf("AND %s = ?", filter.TableColumn))
 			filterValues = append(filterValues, val)
 		}
 	}
@@ -208,8 +209,6 @@ func VectorTileHandlerWithPermission(c *fiber.Ctx) error {
 		log.Printf("User not found: %v", err)
 		return c.Status(fiber.StatusUnauthorized).SendString("User not found")
 	}
-	fmt.Println(user)
-	fmt.Println(user)
 
 	layerDetails, err := maplayer.FetchLayerDetails(layer)
 	if err != nil {

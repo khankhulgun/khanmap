@@ -23,6 +23,7 @@ func Migrate() {
 		&models.MapLayers{},
 		&models.MapLayerLegends{},
 		&models.SubMapLayerPermissions{},
+		&models.SubMapLayerFilters{},
 	)
 	// Create the view
 	createView := `
