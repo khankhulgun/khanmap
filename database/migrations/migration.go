@@ -18,12 +18,14 @@ func Migrate() {
 	}
 	DB.DB.AutoMigrate(
 		&models.SubMapLayerCategories{},
+		&models.MapFilters{},
 		&models.MapLayersForTile{},
 		&models.MapLayerCategory{},
 		&models.MapLayers{},
 		&models.MapLayerLegends{},
 		&models.SubMapLayerPermissions{},
 		&models.SubMapLayerFilters{},
+		&models.SubMapLayerAdminFilters{},
 	)
 	// Create the view
 	createView := `
@@ -42,6 +44,23 @@ func Migrate() {
 		map_server.map_layer_category 
 	ON 
 		sub_map_layer_categories.map_category_id = map_layer_category.id;
+
+	CREATE OR REPLACE VIEW map_server.view_map_filters AS
+	SELECT map_filters.id,
+		map_filters.map_id,
+		map_filters.label,
+		map_filters.value_field,
+		map_filters.label_field,
+		map_filters."table",
+		map_filters.parent_filter_in_table,
+		map_filters.parent_filter_id,
+		map_filters.filter_order,
+		map_filters.created_at,
+		map_filters.updated_at,
+		map_filters.deleted_at,
+		map.map
+	FROM map_server.map_filters
+		LEFT JOIN map_server.map ON map_filters.map_id = map.id;
 
 	CREATE OR REPLACE VIEW map_server.view_map_layer_category AS
 	SELECT id,

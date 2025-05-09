@@ -1,5 +1,10 @@
 package models
 
+import (
+	"gorm.io/gorm"
+	"time"
+)
+
 type MapLayersForTile struct {
 	ID                 string                   `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
 	DbTable            string                   `gorm:"column:db_table" json:"db_table"`
@@ -105,4 +110,18 @@ type SubMapLayerFilters struct {
 
 func (s *SubMapLayerFilters) TableName() string {
 	return "map_server.sub_map_layer_filters"
+}
+
+type SubMapLayerAdminFilters struct {
+	ID         string         `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	LayerID    string         `gorm:"column:layer_id" json:"layer_id"`
+	FilterID   string         `gorm:"column:filter_id" json:"filter_id"`
+	LayerField string         `gorm:"column:layer_field" json:"layer_field"`
+	CreatedAt  time.Time      `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt  time.Time      `gorm:"column:updated_at" json:"updated_at"`
+	DeletedAt  gorm.DeletedAt `gorm:"column:deleted_at" json:"deleted_at"`
+}
+
+func (s *SubMapLayerAdminFilters) TableName() string {
+	return "map_server.sub_map_layer_admin_filters"
 }

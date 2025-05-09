@@ -13,6 +13,7 @@ type Map struct {
 	UpdatedAt   time.Time                `gorm:"column:updated_at" json:"-"`
 	DeletedAt   gorm.DeletedAt           `gorm:"column:deleted_at" json:"-"`
 	Categories  []ViewMapLayerCategories `gorm:"foreignKey:MapID" json:"categories"`
+	Filters     []MapFilters             `gorm:"foreignKey:MapID" json:"filters"`
 	Version     int                      `gorm:"-" json:"version"`
 	Sources     map[string]VectorSource  `gorm:"-" json:"sources"`
 	Sprite      string                   `gorm:"-" json:"sprite"`
@@ -47,4 +48,23 @@ type SubMapLayerCategories struct {
 
 func (s *SubMapLayerCategories) TableName() string {
 	return "map_server.sub_map_layer_categories"
+}
+
+type MapFilters struct {
+	ID                  string         `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	MapID               string         `gorm:"column:map_id" json:"map_id"`
+	Label               string         `gorm:"column:label" json:"label"`
+	ValueField          string         `gorm:"column:value_field" json:"value_field"`
+	LabelField          string         `gorm:"column:label_field" json:"label_field"`
+	Table               string         `gorm:"column:table" json:"table"`
+	ParentFilterInTable *string        `gorm:"column:parent_filter_in_table" json:"parent_filter_in_table"`
+	ParentFilterID      *string        `gorm:"column:parent_filter_id" json:"parent_filter_id"`
+	FilterOrder         *int           `gorm:"column:filter_order" json:"filter_order"`
+	CreatedAt           time.Time      `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt           time.Time      `gorm:"column:updated_at" json:"updated_at"`
+	DeletedAt           gorm.DeletedAt `gorm:"column:deleted_at" json:"deleted_at"`
+}
+
+func (m *MapFilters) TableName() string {
+	return "map_server.map_filters"
 }
