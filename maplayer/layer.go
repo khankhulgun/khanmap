@@ -35,7 +35,10 @@ func FetchLayerDetails(layerID string) (models.MapLayersForTile, error) {
 	}
 
 	var layerDetails models.MapLayersForTile
-	err := DB.DB.Where("id = ?", layerID).First(&layerDetails).Error
+	err := DB.DB.Where("id = ?", layerID).
+		Preload("Permissions").
+		Preload("Filters").
+		First(&layerDetails).Error
 	if err != nil {
 		return layerDetails, err
 	}

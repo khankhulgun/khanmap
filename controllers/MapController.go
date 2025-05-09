@@ -38,8 +38,7 @@ func GetMapLayers(c *fiber.Ctx) error {
 			return db.Order("layer_order ASC").Where("is_active = ?", true).
 				Preload("Legends", func(db *gorm.DB) *gorm.DB {
 					return db.Order("legend_order ASC")
-				}).
-				Preload("Permissions")
+				})
 		})
 	}).Where("id = ?", id).First(&currentMap)
 

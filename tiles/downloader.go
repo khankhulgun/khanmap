@@ -132,7 +132,7 @@ func CreateTiles(layer models.MapLayersForTile) error {
 					continue
 				}
 
-				mvtData, err := getVectorTile(zoom, x, y, layer, "")
+				mvtData, err := getVectorTile(zoom, x, y, layer, nil)
 				if err != nil {
 					fmt.Printf("Failed to get vector tile for zoom %d, x=%d, y=%d: %v\n", zoom, x, y, err)
 					continue
