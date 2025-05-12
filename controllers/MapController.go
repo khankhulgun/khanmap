@@ -33,13 +33,15 @@ func GetMapLayers(c *fiber.Ctx) error {
 	var currentMap models.Map
 
 	// Adjust preloading to correctly apply ordering to Categories and Layers
-	result := DB.DB.Preload("Categories", func(db *gorm.DB) *gorm.DB {
-		return db.Order("category_order ASC").Where("is_active = ?", true).Preload("Layers", func(db *gorm.DB) *gorm.DB {
-			return db.Order("layer_order ASC").Where("is_active = ?", true).
-				Preload("Legends", func(db *gorm.DB) *gorm.DB {
-					return db.Order("legend_order ASC")
-				})
-		})
+	result := DB.DB.Preload("Filters").Preload("Categories", func(db *gorm.DB) *gorm.DB {
+		return db.Order("category_order ASC").Where("is_active = ?", true).
+			Preload("Layers", func(db *gorm.DB) *gorm.DB {
+				return db.Order("layer_order ASC").Where("is_active = ?", true).
+					Preload("Legends", func(db *gorm.DB) *gorm.DB {
+						return db.Order("legend_order ASC")
+					}).
+					Preload("AdminFilters")
+			})
 	}).Where("id = ?", id).First(&currentMap)
 
 	// Check for errors in the query, such as "Record Not Found"
