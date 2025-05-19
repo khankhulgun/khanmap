@@ -56,6 +56,7 @@ type MapFilters struct {
 	Label               string         `gorm:"column:label" json:"label"`
 	ValueField          string         `gorm:"column:value_field" json:"value_field"`
 	LabelField          string         `gorm:"column:label_field" json:"label_field"`
+	Schema              string         `gorm:"column:schema" json:"schema"`
 	Table               string         `gorm:"column:table" json:"table"`
 	ParentFilterInTable *string        `gorm:"column:parent_filter_in_table" json:"parent_filter_in_table"`
 	ParentFilterID      *string        `gorm:"column:parent_filter_id" json:"parent_filter_id"`
