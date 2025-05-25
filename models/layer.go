@@ -24,6 +24,8 @@ type MapLayersForTile struct {
 	UniqueValueField   *string                  `gorm:"column:unique_value_field" json:"unique_value_field"`
 	IsOverlap          bool                     `gorm:"column:is_overlap" json:"is_overlap"`
 	IsPermission       bool                     `gorm:"column:is_permission" json:"is_permission"`
+	SoumIDField        *string                  `gorm:"column:soum_id_field" json:"soum_id_field"`
+	BaghIDField        *string                  `gorm:"column:bagh_id_field" json:"bagh_id_field"`
 	Permissions        []SubMapLayerPermissions `gorm:"foreignKey:LayerID" json:"permissions"`
 	Filters            []SubMapLayerFilters     `gorm:"foreignKey:LayerID" json:"filters"`
 }
@@ -64,6 +66,8 @@ type MapLayers struct {
 	UniqueValueField   *string                   `gorm:"column:unique_value_field" json:"unique_value_field"`
 	IsOverlap          bool                      `gorm:"column:is_overlap" json:"is_overlap"`
 	IsPermission       bool                      `gorm:"column:is_permission" json:"is_permission"`
+	SoumIDField        *string                   `gorm:"column:soum_id_field" json:"soum_id_field"`
+	BaghIDField        *string                   `gorm:"column:bagh_id_field" json:"bagh_id_field"`
 	Layer              *interface{}              `gorm:"-" json:"layer"`
 	Legends            []MapLayerLegends         `gorm:"foreignKey:LayerID" json:"legends"`
 	AdminFilters       []SubMapLayerAdminFilters `gorm:"foreignKey:LayerID" json:"admin_filters"`

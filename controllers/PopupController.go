@@ -137,9 +137,11 @@ func FilterOptions(c *fiber.Ctx) error {
 	}
 
 	type GroupedResult struct {
+		Label        string                   `json:"label"`
 		FilterID     string                   `json:"filter_id"`
 		ParentID     string                   `json:"parent_id"`
 		ParentColumn string                   `json:"parent_column"`
+		ValueField   string                   `json:"value_field"`
 		LabelField   string                   `json:"label_field"`
 		FilterOrder  int                      `json:"filter_order"`
 		Options      []map[string]interface{} `json:"options"`
@@ -172,8 +174,10 @@ func FilterOptions(c *fiber.Ctx) error {
 
 		response = append(response, GroupedResult{
 			FilterID:     filter.ID,
+			Label:        filter.Label,
 			ParentID:     ptrString(filter.ParentFilterID),
 			ParentColumn: ptrString(filter.ParentFilterInTable),
+			ValueField:   filter.ValueField,
 			LabelField:   filter.LabelField,
 			FilterOrder:  ptrInt(filter.FilterOrder),
 			Options:      results,
