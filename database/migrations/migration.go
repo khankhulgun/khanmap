@@ -89,7 +89,8 @@ func Migrate() {
 		map_layers.unique_value_field,
 		map_layers.is_overlap,
 		map_layers.is_permission,
-		map_layers.org_id_field,
+		map_layers.soum_id_field,
+		map_layers.bagh_id_field,
 		map_layer_category.layer_category
 	   FROM map_server.map_layers
 		 LEFT JOIN map_server.map_layer_category ON map_layers.map_layer_category_id = map_layer_category.id;
