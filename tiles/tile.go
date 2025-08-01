@@ -62,7 +62,7 @@ func fetchTileData(query string, args ...interface{}) ([]byte, error) {
 	return mvtData, nil
 }
 
-func tileHandler(layer models.MapLayersForTile, user interface{}) fiber.Handler {
+func tileHandler(layer models.MapLayersForTile, user interface{}, filters map[string]string, areaFilters map[string]string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		z, x, y, err := parseTileParams(c)
 		if err != nil {
@@ -70,7 +70,7 @@ func tileHandler(layer models.MapLayersForTile, user interface{}) fiber.Handler 
 			return c.Status(fiber.StatusBadRequest).SendString("Invalid tile parameters")
 		}
 
-		mvtData, err := getVectorTile(z, x, y, layer, user)
+		mvtData, err := getVectorTile(z, x, y, layer, user, filters, areaFilters)
 		if err != nil {
 			log.Printf("Database error: %v", err)
 			return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
@@ -81,7 +81,7 @@ func tileHandler(layer models.MapLayersForTile, user interface{}) fiber.Handler 
 	}
 }
 
-func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{}) ([]byte, error) {
+func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{}, adminFilters map[string]string, areaFilters map[string]string) ([]byte, error) {
 	minX, minY, maxX, maxY := tileToBBox(z, x, y)
 	sqlColumns := maplayer.ConstructSQLColumns(layer, true)
 
@@ -108,9 +108,10 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{})
 	if layer.IsPermission {
 		if len(layer.Permissions) > 0 {
 			roleVal, ok := userMap["role"]
-			roleInt, isInt := roleVal.(int)
-			if !ok || !isInt {
-				return nil, errors.New("user role is missing or not an int")
+			roleFloat, isFloat := roleVal.(float64)
+			roleInt := int(roleFloat)
+			if !ok || !isFloat {
+				return nil, errors.New("user role is missing or not a float")
 			}
 
 			hasPermission := false
@@ -130,8 +131,23 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{})
 			if !ok {
 				continue
 			}
-			filterConditions = append(filterConditions, fmt.Sprintf("AND %s = ?", filter.TableName))
+			filterConditions = append(filterConditions, fmt.Sprintf("AND %s = ?", filter.TableColumn))
 			filterValues = append(filterValues, val)
+		}
+	}
+
+	for key, value := range adminFilters {
+		filterConditions = append(filterConditions, fmt.Sprintf("AND %s = ?", key))
+		filterValues = append(filterValues, value)
+	}
+
+	for key, value := range areaFilters {
+		if key == "districtID" && layer.SoumIDField != nil && *layer.SoumIDField != "" {
+			filterConditions = append(filterConditions, fmt.Sprintf("AND %s = ?", *layer.SoumIDField))
+			filterValues = append(filterValues, value)
+		} else if key == "regionID" && layer.BaghIDField != nil && *layer.BaghIDField != "" {
+			filterConditions = append(filterConditions, fmt.Sprintf("AND %s = ?", *layer.BaghIDField))
+			filterValues = append(filterValues, value)
 		}
 	}
 
@@ -173,7 +189,7 @@ func SaveVectorTileHandler(c *fiber.Ctx) error {
 		return c.SendFile(tilePath)
 	}
 
-	return tileHandler(layerDetails, nil)(c)
+	return tileHandler(layerDetails, nil, nil, nil)(c)
 }
 
 func SaveHandler(c *fiber.Ctx) error {
@@ -184,13 +200,28 @@ func SaveHandler(c *fiber.Ctx) error {
 		log.Printf("Layer not found: %v", err)
 		return c.Status(fiber.StatusNotFound).SendString("Layer not found")
 	}
-	CreateTiles(layerDetails)
+	createErr := CreateTiles(layerDetails)
+	if createErr != nil {
+		log.Printf("Error creating tiles: %v", err)
+		return c.Status(fiber.StatusInternalServerError).SendString("Error creating tiles")
+	}
 
 	return nil
 }
 
 func VectorTileHandler(c *fiber.Ctx) error {
 	layer := c.Params("layer")
+	query := c.Queries()
+	filters := make(map[string]string)
+	areaFilters := make(map[string]string)
+
+	for key, value := range query {
+		if key == "districtID" || key == "regionID" {
+			areaFilters[key] = value
+		} else {
+			filters[key] = value
+		}
+	}
 
 	layerDetails, err := maplayer.FetchLayerDetails(layer)
 	if err != nil {
@@ -198,7 +229,7 @@ func VectorTileHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).SendString("Layer not found")
 	}
 
-	return tileHandler(layerDetails, nil)(c)
+	return tileHandler(layerDetails, nil, filters, areaFilters)(c)
 }
 
 func VectorTileHandlerWithPermission(c *fiber.Ctx) error {
@@ -208,8 +239,18 @@ func VectorTileHandlerWithPermission(c *fiber.Ctx) error {
 		log.Printf("User not found: %v", err)
 		return c.Status(fiber.StatusUnauthorized).SendString("User not found")
 	}
-	fmt.Println(user)
-	fmt.Println(user)
+
+	query := c.Queries()
+	filters := make(map[string]string)
+	areaFilters := make(map[string]string)
+
+	for key, value := range query {
+		if key == "districtID" || key == "regionID" {
+			areaFilters[key] = value
+		} else {
+			filters[key] = value
+		}
+	}
 
 	layerDetails, err := maplayer.FetchLayerDetails(layer)
 	if err != nil {
@@ -217,5 +258,5 @@ func VectorTileHandlerWithPermission(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).SendString("Layer not found")
 	}
 
-	return tileHandler(layerDetails, user)(c)
+	return tileHandler(layerDetails, user, filters, areaFilters)(c)
 }

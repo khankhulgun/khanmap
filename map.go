@@ -19,11 +19,10 @@ func Set(app *fiber.App) {
 	a := app.Group("/mapserver/api")
 	a.Get("/geometry-tables", agentMW.IsLoggedIn(), controllers.GeometryTables)
 	a.Get("/table-columns/:schema/:table", agentMW.IsLoggedIn(), controllers.TableColumns)
-
 	a.Get("/map/:id", controllers.GetMapLayers)
-
 	a.Post("/spatial/:layer/:relationship", controllers.Spatial)
 	a.Post("/map-data", controllers.GetMapData)
+	a.Get("/filter-options", controllers.FilterOptions)
 
 	if config.Config.App.Migrate == "true" {
 		migrations.Migrate()

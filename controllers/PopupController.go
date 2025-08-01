@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/khankhulgun/khanmap/maplayer"
+	"github.com/khankhulgun/khanmap/models"
 	"github.com/khankhulgun/khanmap/spatial"
+	"github.com/lambda-platform/lambda/DB"
 	"strings"
 )
 
@@ -113,4 +115,98 @@ func GetMapData(c *fiber.Ctx) error {
 
 	// Return the grouped results
 	return c.JSON(output)
+}
+
+func FilterOptions(c *fiber.Ctx) error {
+	filterIDs := c.Query("ids")
+	if filterIDs == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "IDs query param is required",
+		})
+	}
+
+	idStrings := strings.Split(filterIDs, ",")
+	var filters []models.MapFilters
+	if err := DB.DB.Where("id IN ?", idStrings).Find(&filters).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Error retrieving map filters",
+			"error":   err.Error(),
+		})
+	}
+
+	type GroupedResult struct {
+		Label        string                   `json:"label"`
+		FilterID     string                   `json:"filter_id"`
+		ParentID     string                   `json:"parent_id"`
+		ParentColumn string                   `json:"parent_column"`
+		ValueField   string                   `json:"value_field"`
+		LabelField   string                   `json:"label_field"`
+		FilterOrder  int                      `json:"filter_order"`
+		Options      []map[string]interface{} `json:"options"`
+	}
+
+	response := make([]GroupedResult, 0, len(filters))
+	for _, filter := range filters {
+		columns := []string{"id"}
+		if filter.ValueField != "id" {
+			columns = append(columns, filter.ValueField)
+		}
+		for _, col := range strings.Split(filter.LabelField, ",") {
+			columns = append(columns, strings.TrimSpace(col))
+		}
+		if filter.ParentFilterInTable != nil && *filter.ParentFilterInTable != "" {
+			if !contains(columns, *filter.ParentFilterInTable) {
+				columns = append(columns, *filter.ParentFilterInTable)
+			}
+		}
+
+		var results []map[string]interface{}
+		if err := DB.DB.Select(strings.Join(columns, ",")).Table(filter.Schema + "." + filter.Table).Find(&results).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status":  "error",
+				"message": "Error retrieving map filters",
+				"filter":  filter.ID,
+				"error":   err.Error(),
+			})
+		}
+
+		response = append(response, GroupedResult{
+			FilterID:     filter.ID,
+			Label:        filter.Label,
+			ParentID:     ptrString(filter.ParentFilterID),
+			ParentColumn: ptrString(filter.ParentFilterInTable),
+			ValueField:   filter.ValueField,
+			LabelField:   filter.LabelField,
+			FilterOrder:  ptrInt(filter.FilterOrder),
+			Options:      results,
+		})
+	}
+
+	return c.JSON(response)
+}
+
+// Helper functions
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+func ptrString(ptr *string) string {
+	if ptr == nil {
+		return ""
+	}
+	return *ptr
+}
+
+func ptrInt(ptr *int) int {
+	if ptr == nil {
+		return 0
+	}
+	return *ptr
 }
