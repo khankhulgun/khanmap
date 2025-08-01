@@ -196,28 +196,28 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 
 							err = sprite.SVGToPNG("./public"+markerPath, outputFile)
 							if err != nil {
-								return style, errors.New("Error converting SVG to PNG")
+								return style, errors.New("Error converting SVG to PNG: " + layer.LayerTitle + layer.ID)
 							}
 						} else if strings.HasSuffix(markerPath, ".png") {
 							// Copy the PNG marker to the target location
 							input, err := os.Open(markerPath)
 							if err != nil {
-								return style, errors.New("Error opening marker file")
+								return style, errors.New("Error opening marker file: " + layer.LayerTitle + layer.ID)
 							}
 							defer input.Close()
 
 							output, err := os.Create(outputFile)
 							if err != nil {
-								return style, errors.New("Error creating output file")
+								return style, errors.New("Error creating output file: " + layer.LayerTitle + layer.ID)
 							}
 							defer output.Close()
 
 							_, err = io.Copy(output, input)
 							if err != nil {
-								return style, errors.New("Error copying marker file")
+								return style, errors.New("Error copying marker file: " + layer.LayerTitle + layer.ID)
 							}
 						} else {
-							return style, errors.New("Unsupported marker file format")
+							return style, errors.New("Unsupported marker file format: " + layer.LayerTitle + layer.ID)
 						}
 					}
 				}
