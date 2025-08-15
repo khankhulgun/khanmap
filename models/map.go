@@ -52,7 +52,7 @@ func (s *SubMapLayerCategories) TableName() string {
 
 type MapFilters struct {
 	ID                  string         `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	MapID               string         `gorm:"column:map_id" json:"map_id"`
+	MapID               string         `gorm:"column:map_id;type:uuid" json:"map_id"`
 	Label               string         `gorm:"column:label" json:"label"`
 	ValueField          string         `gorm:"column:value_field" json:"value_field"`
 	LabelField          string         `gorm:"column:label_field" json:"label_field"`
