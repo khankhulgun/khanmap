@@ -129,15 +129,14 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 
 		if len(layer.UserPermissions) > 0 {
 			idVal, ok := userMap["id"]
-			idFloat, isFloat := idVal.(float64)
-			idInt := int(idFloat)
-			if !ok || !isFloat {
-				return nil, errors.New("user id is missing or not a float")
+			idInt64, isInt64 := idVal.(int64)
+			if !ok || !isInt64 {
+				return nil, fmt.Errorf("user id is missing or not an int64")
 			}
 
 			hasPermission := false
 			for _, perm := range layer.UserPermissions {
-				if idInt == perm.UserID {
+				if idInt64 == int64(perm.UserID) {
 					hasPermission = true
 					break
 				}
