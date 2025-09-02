@@ -1,12 +1,13 @@
 package maplayer
 
 import (
-	"github.com/dgraph-io/ristretto"
-	"github.com/khankhulgun/khanmap/models"
-	"github.com/lambda-platform/lambda/DB"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/dgraph-io/ristretto"
+	"github.com/khankhulgun/khanmap/models"
+	"github.com/lambda-platform/lambda/DB"
 )
 
 func init() {
@@ -36,7 +37,8 @@ func FetchLayerDetails(layerID string) (models.MapLayersForTile, error) {
 
 	var layerDetails models.MapLayersForTile
 	err := DB.DB.Where("id = ?", layerID).
-		Preload("Permissions").
+		Preload("RolePermissions").
+		Preload("UserPermissions").
 		Preload("Filters").
 		First(&layerDetails).Error
 	if err != nil {

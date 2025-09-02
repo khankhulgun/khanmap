@@ -3,17 +3,18 @@ package tiles
 import (
 	"errors"
 	"fmt"
-	"github.com/gofiber/fiber/v2"
-	"github.com/khankhulgun/khanmap/maplayer"
-	"github.com/khankhulgun/khanmap/models"
-	"github.com/lambda-platform/lambda/DB"
-	agentUtils "github.com/lambda-platform/lambda/agent/utils"
 	"log"
 	"math"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/khankhulgun/khanmap/maplayer"
+	"github.com/khankhulgun/khanmap/models"
+	"github.com/lambda-platform/lambda/DB"
+	agentUtils "github.com/lambda-platform/lambda/agent/utils"
 )
 
 type Feature struct {
@@ -106,7 +107,7 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 	var filterValues []interface{}
 
 	if layer.IsPermission {
-		if len(layer.Permissions) > 0 {
+		if len(layer.RolePermissions) > 0 {
 			roleVal, ok := userMap["role"]
 			roleFloat, isFloat := roleVal.(float64)
 			roleInt := int(roleFloat)
@@ -115,8 +116,28 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 			}
 
 			hasPermission := false
-			for _, perm := range layer.Permissions {
+			for _, perm := range layer.RolePermissions {
 				if roleInt == perm.RoleID {
+					hasPermission = true
+					break
+				}
+			}
+			if !hasPermission {
+				return nil, errors.New("user role does not have permission for this layer")
+			}
+		}
+
+		if len(layer.UserPermissions) > 0 {
+			idVal, ok := userMap["id"]
+			idFloat, isFloat := idVal.(float64)
+			idInt := int(idFloat)
+			if !ok || !isFloat {
+				return nil, errors.New("user id is missing or not a float")
+			}
+
+			hasPermission := false
+			for _, perm := range layer.UserPermissions {
+				if idInt == perm.UserID {
 					hasPermission = true
 					break
 				}

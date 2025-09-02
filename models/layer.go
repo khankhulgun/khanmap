@@ -1,33 +1,35 @@
 package models
 
 import (
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type MapLayersForTile struct {
-	ID                 string                   `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	DbTable            string                   `gorm:"column:db_table" json:"db_table"`
-	GeometryType       string                   `gorm:"column:geometry_type" json:"geometry_type"`
-	GeometryFieldName  string                   `gorm:"column:geometry_fieldname" json:"geometry_fieldname"`
-	IDFieldName        string                   `gorm:"column:id_fieldname" json:"id_fieldname"`
-	DbSchema           string                   `gorm:"column:db_schema" json:"db_schema"`
-	ColumnSelects      string                   `gorm:"column:column_selects" json:"column_selects"`
-	IsActive           bool                     `gorm:"column:is_active" json:"is_active"`
-	IsPublic           bool                     `gorm:"column:is_public" json:"is_public"`
-	IsVisible          bool                     `gorm:"column:is_visible" json:"is_visible"`
-	LayerOrder         int                      `gorm:"column:layer_order" json:"layer_order"`
-	MapLayerCategoryID string                   `gorm:"column:map_layer_category_id;type:uuid" json:"map_layer_category_id"`
-	LayerTitle         string                   `gorm:"column:layer_title" json:"layer_title"`
-	Description        *string                  `gorm:"column:description" json:"description"`
-	PopupTemplate      *string                  `gorm:"column:popup_template" json:"popup_template"`
-	UniqueValueField   *string                  `gorm:"column:unique_value_field" json:"unique_value_field"`
-	IsOverlap          bool                     `gorm:"column:is_overlap" json:"is_overlap"`
-	IsPermission       bool                     `gorm:"column:is_permission" json:"is_permission"`
-	SoumIDField        *string                  `gorm:"column:soum_id_field" json:"soum_id_field"`
-	BaghIDField        *string                  `gorm:"column:bagh_id_field" json:"bagh_id_field"`
-	Permissions        []SubMapLayerPermissions `gorm:"foreignKey:LayerID" json:"permissions"`
-	Filters            []SubMapLayerFilters     `gorm:"foreignKey:LayerID" json:"filters"`
+	ID                 string                       `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	DbTable            string                       `gorm:"column:db_table" json:"db_table"`
+	GeometryType       string                       `gorm:"column:geometry_type" json:"geometry_type"`
+	GeometryFieldName  string                       `gorm:"column:geometry_fieldname" json:"geometry_fieldname"`
+	IDFieldName        string                       `gorm:"column:id_fieldname" json:"id_fieldname"`
+	DbSchema           string                       `gorm:"column:db_schema" json:"db_schema"`
+	ColumnSelects      string                       `gorm:"column:column_selects" json:"column_selects"`
+	IsActive           bool                         `gorm:"column:is_active" json:"is_active"`
+	IsPublic           bool                         `gorm:"column:is_public" json:"is_public"`
+	IsVisible          bool                         `gorm:"column:is_visible" json:"is_visible"`
+	LayerOrder         int                          `gorm:"column:layer_order" json:"layer_order"`
+	MapLayerCategoryID string                       `gorm:"column:map_layer_category_id;type:uuid" json:"map_layer_category_id"`
+	LayerTitle         string                       `gorm:"column:layer_title" json:"layer_title"`
+	Description        *string                      `gorm:"column:description" json:"description"`
+	PopupTemplate      *string                      `gorm:"column:popup_template" json:"popup_template"`
+	UniqueValueField   *string                      `gorm:"column:unique_value_field" json:"unique_value_field"`
+	IsOverlap          bool                         `gorm:"column:is_overlap" json:"is_overlap"`
+	IsPermission       bool                         `gorm:"column:is_permission" json:"is_permission"`
+	SoumIDField        *string                      `gorm:"column:soum_id_field" json:"soum_id_field"`
+	BaghIDField        *string                      `gorm:"column:bagh_id_field" json:"bagh_id_field"`
+	RolePermissions    []SubMapLayerRolePermissions `gorm:"foreignKey:LayerID" json:"role_permissions"`
+	UserPermissions    []SubMapLayerUserPermissions `gorm:"foreignKey:LayerID" json:"user_permissions"`
+	Filters            []SubMapLayerFilters         `gorm:"foreignKey:LayerID" json:"filters"`
 }
 
 func (m *MapLayersForTile) TableName() string {
@@ -96,14 +98,25 @@ func (m *MapLayerLegends) TableName() string {
 	return "map_server.map_layer_legends"
 }
 
-type SubMapLayerPermissions struct {
-	ID      string `gorm:"column:id;type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	LayerID string `gorm:"column:layer_id;type:uuid" json:"layer_id"`
+type SubMapLayerRolePermissions struct {
+	ID      string `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	LayerID string `gorm:"column:layer_id" json:"layer_id"`
 	RoleID  int    `gorm:"column:role_id" json:"role_id"`
 }
 
-func (s *SubMapLayerPermissions) TableName() string {
-	return "map_server.sub_map_layer_permissions"
+func (s *SubMapLayerRolePermissions) TableName() string {
+	return "map_server.sub_map_layer_role_permissions"
+}
+
+type SubMapLayerUserPermissions struct {
+	ID      string `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	LayerID string `gorm:"column:layer_id" json:"layer_id"`
+	RoleID  int    `gorm:"column:role_id" json:"role_id"`
+	UserID  int    `gorm:"column:user_id" json:"user_id"`
+}
+
+func (s *SubMapLayerUserPermissions) TableName() string {
+	return "map_server.sub_map_layer_user_permissions"
 }
 
 type SubMapLayerFilters struct {

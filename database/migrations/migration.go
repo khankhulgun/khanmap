@@ -1,9 +1,10 @@
 package migrations
 
 import (
+	"log"
+
 	"github.com/khankhulgun/khanmap/models"
 	"github.com/lambda-platform/lambda/DB"
-	"log"
 )
 
 func Migrate() {
@@ -23,7 +24,8 @@ func Migrate() {
 		&models.MapLayerCategory{},
 		&models.MapLayers{},
 		&models.MapLayerLegends{},
-		&models.SubMapLayerPermissions{},
+		&models.SubMapLayerRolePermissions{},
+		&models.SubMapLayerUserPermissions{},
 		&models.SubMapLayerFilters{},
 		&models.SubMapLayerAdminFilters{},
 	)
