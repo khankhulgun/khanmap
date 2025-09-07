@@ -21,6 +21,7 @@ func GetMapLayers(c *fiber.Ctx) error {
 	// Get the 'id' parameter from the URL
 	id := c.Params("id")
 	generate := c.Query("generate")
+	secure := c.Query("secure")
 	if id == "" {
 		// Return a 400 Bad Request error if no ID is provided
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -61,7 +62,7 @@ func GetMapLayers(c *fiber.Ctx) error {
 		})
 	}
 
-	mapStyle, generateErr := generateVectorTileStyle(currentMap.Categories)
+	mapStyle, generateErr := generateVectorTileStyle(currentMap.Categories, secure)
 
 	currentMap.Version = mapStyle.Version
 	currentMap.Layers = mapStyle.Layers
@@ -127,7 +128,7 @@ func GetMapLayers(c *fiber.Ctx) error {
 	return c.JSON(currentMap)
 }
 
-func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models.VectorTileStyle, error) {
+func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure string) (models.VectorTileStyle, error) {
 	var style models.VectorTileStyle
 
 	// Initialize sources with error handling
@@ -144,10 +145,15 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories) (models
 				// If no protocol, prepend https://
 				baseUrl = "https://" + baseUrl
 			}
+			var tilePath string = "/tiles/"
+
+			if secure == "true" {
+				tilePath = "/tiles-with-permission/"
+			}
 			style.Sources[layer.ID] = models.VectorSource{
 
 				Type:  "vector",
-				Tiles: []string{baseUrl + "/tiles/" + layer.ID + "/{z}/{x}/{y}.pbf"},
+				Tiles: []string{baseUrl + tilePath + layer.ID + "/{z}/{x}/{y}.pbf"},
 			}
 		}
 
