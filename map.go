@@ -15,7 +15,6 @@ func Set(app *fiber.App) {
 	app.Get("/tiles-with-permission/:layer/:z/:x/:y.pbf", agentMW.IsLoggedIn(), tiles.VectorTileHandlerWithPermission)
 	app.Get("/saved-tiles/:layer/:z/:x/:y.pbf", tiles.SaveVectorTileHandler)
 	app.Get("/save-tile/:layer", tiles.SaveHandler)
-	app.Get("/map/:id", agentMW.IsLoggedIn(), controllers.GetMapLayersWithAuthTemp)
 
 	a := app.Group("/mapserver/api")
 	a.Get("/geometry-tables", agentMW.IsLoggedIn(), controllers.GeometryTables)
