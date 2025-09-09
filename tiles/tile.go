@@ -116,12 +116,21 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 			}
 
 			hasPermission := false
+			roleFound := false
+
 			for _, perm := range layer.RolePermissions {
 				if roleInt == perm.RoleID {
-					hasPermission = true
+					roleFound = true
 					break
 				}
 			}
+
+			if layer.IsRoleException != nil && *layer.IsRoleException != 0 {
+				hasPermission = !roleFound
+			} else {
+				hasPermission = roleFound
+			}
+
 			if !hasPermission {
 				return nil, errors.New("user role does not have permission for this layer")
 			}
@@ -135,12 +144,21 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 			}
 
 			hasPermission := false
+			userFound := false
+
 			for _, perm := range layer.UserPermissions {
 				if idInt64 == int64(perm.UserID) {
-					hasPermission = true
+					userFound = true
 					break
 				}
 			}
+
+			if layer.IsRoleException != nil && *layer.IsRoleException != 0 {
+				hasPermission = !userFound
+			} else {
+				hasPermission = userFound
+			}
+
 			if !hasPermission {
 				return nil, errors.New("user does not have permission for this layer")
 			}
