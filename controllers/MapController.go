@@ -213,9 +213,7 @@ func GetMapLayersWithAuth(c *fiber.Ctx) error {
 
 			if layer.IsPermission {
 				if len(layer.RolePermissions) > 0 {
-					hasPermission := false
 					roleFound := false
-
 					for _, perm := range layer.RolePermissions {
 						if roleInt == perm.RoleID {
 							roleFound = true
@@ -223,21 +221,20 @@ func GetMapLayersWithAuth(c *fiber.Ctx) error {
 						}
 					}
 
+					var hasRolePermission bool
 					if layer.IsRoleException != nil && *layer.IsRoleException != 0 {
-						hasPermission = !roleFound
+						hasRolePermission = !roleFound
 					} else {
-						hasPermission = roleFound
+						hasRolePermission = roleFound
 					}
 
-					if !hasPermission {
+					if !hasRolePermission {
 						shouldIncludeLayer = false
 					}
 				}
 
-				if len(layer.UserPermissions) > 0 {
-					hasPermission := false
+				if shouldIncludeLayer && len(layer.UserPermissions) > 0 {
 					userFound := false
-
 					for _, perm := range layer.UserPermissions {
 						if idInt64 == int64(perm.UserID) {
 							userFound = true
@@ -245,13 +242,14 @@ func GetMapLayersWithAuth(c *fiber.Ctx) error {
 						}
 					}
 
+					var hasUserPermission bool
 					if layer.IsRoleException != nil && *layer.IsRoleException != 0 {
-						hasPermission = !userFound
+						hasUserPermission = !userFound
 					} else {
-						hasPermission = userFound
+						hasUserPermission = userFound
 					}
 
-					if !hasPermission {
+					if !hasUserPermission {
 						shouldIncludeLayer = false
 					}
 				}
