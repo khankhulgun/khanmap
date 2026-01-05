@@ -476,14 +476,21 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 			case "LineString":
 				// Define line layer style using line color, width, and other properties
 				if len(layer.Legends) >= 1 {
-					if layer.Legends[0].FillColor != nil {
+					var lineColor *string
+					if layer.Legends[0].StrokeColor != nil {
+						lineColor = layer.Legends[0].StrokeColor
+					} else if layer.Legends[0].FillColor != nil {
+						lineColor = layer.Legends[0].FillColor
+					}
+
+					if lineColor != nil {
 						lineLayer := models.LineLayer{
 							ID:          layer.ID,
 							Type:        "line",
 							Source:      layer.ID, // Use category source
 							SourceLayer: layer.DbSchema + "." + layer.DbTable,
 							Paint: models.LineLayerPaint{
-								LineColor: *layer.Legends[0].FillColor,
+								LineColor: *lineColor,
 								LineWidth: 2.0,
 							},
 						}
@@ -494,7 +501,8 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 
 			case "Polygon":
 				if len(layer.Legends) >= 1 {
-					if layer.Legends[0].FillColor != nil && layer.Legends[0].StrokeColor != nil {
+					// Add Fill Layer if FillColor exists
+					if layer.Legends[0].FillColor != nil {
 						fillLayer := models.FillLayer{
 							ID:          layer.ID,
 							Type:        "fill",
@@ -506,7 +514,10 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 							},
 						}
 						style.Layers = append(style.Layers, fillLayer)
+					}
 
+					// Add Line Layer (Stroke) if StrokeColor exists
+					if layer.Legends[0].StrokeColor != nil {
 						lineLayer := models.LineLayer{
 							ID:          layer.ID,
 							Type:        "line",
