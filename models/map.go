@@ -1,8 +1,9 @@
 package models
 
 import (
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type Map struct {
@@ -17,6 +18,7 @@ type Map struct {
 	Version     int                      `gorm:"-" json:"version"`
 	Sources     map[string]VectorSource  `gorm:"-" json:"sources"`
 	Sprite      string                   `gorm:"-" json:"sprite"`
+	Glyphs      string                   `gorm:"-" json:"glyphs"`
 	Layers      []any                    `gorm:"-" json:"layers"`
 }
 

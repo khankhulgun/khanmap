@@ -77,6 +77,7 @@ func GetMapLayers(c *fiber.Ctx) error {
 	currentMap.Version = mapStyle.Version
 	currentMap.Layers = mapStyle.Layers
 	currentMap.Sources = mapStyle.Sources
+	currentMap.Glyphs = mapStyle.Glyphs
 
 	spriteURL := config.LambdaConfig.Domain + "/map/" + id + "/sprite/" + id
 
@@ -280,6 +281,7 @@ func GetMapLayersWithAuth(c *fiber.Ctx) error {
 	currentMap.Version = mapStyle.Version
 	currentMap.Layers = mapStyle.Layers
 	currentMap.Sources = mapStyle.Sources
+	currentMap.Glyphs = mapStyle.Glyphs
 
 	spriteURL := config.LambdaConfig.Domain + "/map/" + id + "/sprite/" + id
 	hasProtocol := strings.HasPrefix(spriteURL, "http://") || strings.HasPrefix(spriteURL, "https://")
@@ -303,7 +305,20 @@ func GetMapLayersWithAuth(c *fiber.Ctx) error {
 func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure string) (models.VectorTileStyle, error) {
 	var style models.VectorTileStyle
 
-	// Initialize sources with error handling
+	// Initialize style properties
+	style.Version = 8
+
+	// Set glyphs URL with proper protocol
+	baseUrl := config.LambdaConfig.Domain
+	if baseUrl == "" {
+		baseUrl = "http://localhost:9995"
+	}
+	hasProtocol := strings.HasPrefix(baseUrl, "http://") || strings.HasPrefix(baseUrl, "https://")
+	if !hasProtocol {
+		baseUrl = "https://" + baseUrl
+	}
+	style.Glyphs = baseUrl + "/fonts/{fontstack}/{range}.pbf"
+
 	style.Sources = map[string]models.VectorSource{}
 
 	for _, category := range categories {
@@ -341,11 +356,14 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 				if len(layer.Legends) >= 1 {
 					if layer.Legends[0].Marker != nil {
 
+						// Add layers in specific order for frontend compatibility (ol-mapbox-style)
+						// 1. Unclustered points layer (using marker icon) - FIRST to ensure Vector context
 						pointSymbol := models.SymbolLayer{
 							ID:          layer.ID,
 							Type:        "symbol",
 							Source:      layer.ID, // Use category source
 							SourceLayer: layer.DbSchema + "." + layer.DbTable,
+							Filter:      []interface{}{"!", []interface{}{"has", "point_count"}},
 							Layout: models.SymbolLayerLayout{
 								IconImage:           layer.ID,
 								IconSize:            1.0,
@@ -358,6 +376,60 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 							},
 						}
 						style.Layers = append(style.Layers, pointSymbol)
+
+						// 2. Cluster circles layer
+						clusterCircleLayer := models.CircleLayer{
+							ID:          layer.ID + "-clusters",
+							Type:        "circle",
+							Source:      layer.ID,
+							SourceLayer: layer.DbSchema + "." + layer.DbTable,
+							Filter:      []interface{}{"has", "point_count"},
+							Paint: models.CircleLayerPaint{
+								CircleColor: []interface{}{
+									"step",
+									[]interface{}{"get", "point_count"},
+									"#05a41bff",
+									100,
+									"#ca6a0bff",
+									750,
+									"#c51221ff",
+								},
+								CircleRadius: []interface{}{
+									"step",
+									[]interface{}{"get", "point_count"},
+									20,
+									100,
+									30,
+									750,
+									40,
+								},
+								CircleOpacity:       1,
+								CircleStrokeWidth:   5,
+								CircleStrokeColor:   "#05a41bff",
+								CircleStrokeOpacity: 0.4,
+							},
+						}
+						style.Layers = append(style.Layers, clusterCircleLayer)
+
+						// 3. Cluster count text layer
+						clusterCountLayer := models.SymbolLayer{
+							ID:          layer.ID + "-cluster-count",
+							Type:        "symbol",
+							Source:      layer.ID,
+							SourceLayer: layer.DbSchema + "." + layer.DbTable,
+							Filter:      []interface{}{"has", "point_count"},
+							Layout: models.SymbolLayerLayout{
+								TextField:  []interface{}{"get", "point_count_abbreviated"},
+								TextFont:   []string{"Noto Sans Bold"},
+								TextSize:   12,
+								TextOffset: []float64{0, 0},
+								TextAnchor: "center",
+							},
+							Paint: models.SymbolLayerPaint{
+								TextColor: "#ffffff",
+							},
+						}
+						style.Layers = append(style.Layers, clusterCountLayer)
 
 						// Define the output directory
 						outputDir := fmt.Sprintf("./public/map/%s/sprite/images", category.MapID)

@@ -63,6 +63,24 @@ func fetchTileData(query string, args ...interface{}) ([]byte, error) {
 	return mvtData, nil
 }
 
+// getClusterRadius calculates the cluster radius in degrees based on zoom level and latitude
+// standardRadiusPixels: default radius in pixels (e.g., 40-60)
+func getClusterRadius(zoom int, lat float64) float64 {
+	// Earth circumference ~40,075,017 meters
+	// Resolution (meters/pixel) = 156543.03 * cos(lat) / 2^zoom
+
+	const standardRadiusPixels = 50.0
+	// Convert latitude to radians
+	latRad := lat * math.Pi / 180.0
+	resolution := 156543.03 * math.Cos(latRad) / math.Pow(2, float64(zoom))
+
+	// Radius in meters
+	radiusMeters := standardRadiusPixels * resolution
+
+	// Convert to degrees (1 degree ~ 111,320m)
+	return radiusMeters / 111320.0
+}
+
 func tileHandler(layer models.MapLayersForTile, user interface{}, filters map[string]string, areaFilters map[string]string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		z, x, y, err := parseTileParams(c)
@@ -84,9 +102,70 @@ func tileHandler(layer models.MapLayersForTile, user interface{}, filters map[st
 
 func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{}, adminFilters map[string]string, areaFilters map[string]string) ([]byte, error) {
 	minX, minY, maxX, maxY := tileToBBox(z, x, y)
+
+	// Calculate buffer in degrees to prevent edge artifacts
+	// Default buffer is often 256 units in a 4096 unit tile (approx 6.25%)
+	const bufferRatio = 256.0 / 4096.0
+	xSpan := maxX - minX
+	ySpan := maxY - minY
+	bufferX := xSpan * bufferRatio
+	bufferY := ySpan * bufferRatio
+
+	// Buffered BBox for SQL selection
+	bMinX, bMinY, bMaxX, bMaxY := minX-bufferX, minY-bufferY, maxX+bufferX, maxY+bufferY
+
 	sqlColumns := maplayer.ConstructSQLColumns(layer, true)
 
-	rawSQL := `
+	var rawSQL string
+
+	// Check if this is a Point layer and should use clustering
+	if layer.GeometryType == "Point" && z < 16 {
+		// Clustering SQL for Point layers
+		rawSQL = `
+		SELECT ST_AsMVT(tile, ?, ?, ?) FROM (
+			SELECT
+				CASE
+					WHEN cluster_id IS NOT NULL THEN
+						jsonb_build_object(
+							'cluster', true,
+							'point_count', count(*)::int,
+							'point_count_abbreviated',
+								CASE
+									WHEN count(*) >= 10000 THEN (count(*)/1000)::int || 'K'
+									WHEN count(*) >= 1000 THEN ROUND(count(*)/1000.0, 1)::text || 'K'
+									ELSE count(*)::text
+								END
+						)
+					ELSE
+						to_jsonb((array_agg(points))[1]) - '` + layer.GeometryFieldName + `' - 'cluster_id'
+				END as properties,
+				ST_AsMVTGeom(
+						ST_Centroid(ST_Collect(` + layer.GeometryFieldName + `)),
+					ST_MakeEnvelope(?, ?, ?, ?, 4326),
+					?,
+					?,
+					true
+				) AS ` + layer.GeometryFieldName + `
+			FROM (
+				SELECT
+					*,
+					ST_ClusterDBSCAN(
+						` + layer.GeometryFieldName + `,
+						eps := ?,
+						minpoints := 2
+					) OVER () as cluster_id
+				FROM ` + layer.DbSchema + `.` + layer.DbTable + `
+				WHERE ` + layer.GeometryFieldName + ` && ST_MakeEnvelope(?, ?, ?, ?, 4326) %s
+			) points
+			GROUP BY
+				cluster_id,
+				CASE WHEN cluster_id IS NULL THEN ` + layer.IDFieldName + ` ELSE NULL END
+		) AS tile
+		WHERE ` + layer.GeometryFieldName + ` IS NOT NULL
+		`
+	} else {
+		// Standard SQL for non-Point layers or high zoom levels
+		rawSQL = `
 		SELECT ST_AsMVT(q, ?, ?, ?) FROM (
 			SELECT ` + sqlColumns + `, ST_AsMVTGeom(
 				` + layer.GeometryFieldName + `,
@@ -98,7 +177,8 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 			FROM ` + layer.DbSchema + `.` + layer.DbTable + `
 			WHERE ` + layer.GeometryFieldName + ` && ST_MakeEnvelope(?, ?, ?, ?, 4326) %s
 		) AS q
-	`
+		`
+	}
 
 	userMap, _ := user.(map[string]interface{})
 
@@ -191,15 +271,43 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 
 	query = fmt.Sprintf(query, strings.Join(filterConditions, " "))
 
-	args := []interface{}{
-		layer.DbSchema + "." + layer.DbTable,
-		tileSize,
-		layer.GeometryFieldName,
-		minX, minY, maxX, maxY,
-		tileSize,
-		tileExtent,
-		minX, minY, maxX, maxY,
+	var args []interface{}
+
+	// Build args based on whether clustering is enabled
+	if layer.GeometryType == "Point" && z < 16 {
+		// Clustering query args
+		// Use center latitude for radius calculation to reduce distortion
+		centerLat := (minY + maxY) / 2.0
+		clusterRadius := getClusterRadius(z, centerLat)
+
+		args = []interface{}{
+			layer.DbSchema + "." + layer.DbTable,
+			tileSize,
+			layer.GeometryFieldName,
+			minX, minY, maxX, maxY, // ST_MakeEnvelope (Clip) uses standard bbox
+			tileSize,
+			tileExtent,
+			clusterRadius, // eps parameter for ST_ClusterDBSCAN
+			// Use BUFFERED bbox for selection to include edge points
+			bMinX, bMinY, bMaxX, bMaxY,
+		}
+	} else {
+		// Standard query args
+		args = []interface{}{
+			layer.DbSchema + "." + layer.DbTable,
+			tileSize,
+			layer.GeometryFieldName,
+			minX, minY, maxX, maxY,
+			tileSize,
+			tileExtent,
+			// Use BUFFERED bbox for standard queries too to be safe (optional but recommended)
+			// But for now, let's stick to standard behavior unless requested
+			// Wait, MVT usually benefits from buffering too.
+			// Let's keep using buffered bbox for selection.
+			bMinX, bMinY, bMaxX, bMaxY,
+		}
 	}
+
 	args = append(args, filterValues...)
 
 	return fetchTileData(query, args...)

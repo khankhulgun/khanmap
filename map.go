@@ -15,6 +15,7 @@ func Set(app *fiber.App) {
 	app.Get("/tiles-with-permission/:layer/:z/:x/:y.pbf", agentMW.IsLoggedIn(), tiles.VectorTileHandlerWithPermission)
 	app.Get("/saved-tiles/:layer/:z/:x/:y.pbf", tiles.SaveVectorTileHandler)
 	app.Get("/save-tile/:layer", tiles.SaveHandler)
+	app.Get("/fonts/:fontstack/:range.pbf", tiles.FontHandler)
 
 	a := app.Group("/mapserver/api")
 	a.Get("/geometry-tables", agentMW.IsLoggedIn(), controllers.GeometryTables)
@@ -24,6 +25,8 @@ func Set(app *fiber.App) {
 	a.Post("/spatial/:layer/:relationship", controllers.Spatial)
 	a.Post("/map-data", controllers.GetMapData)
 	a.Get("/filter-options", controllers.FilterOptions)
+
+	app.Static("/", "public")
 
 	if config.Config.App.Migrate == "true" {
 		migrations.Migrate()
