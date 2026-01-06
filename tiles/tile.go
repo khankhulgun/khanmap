@@ -129,7 +129,7 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 						jsonb_build_object(
 							'cluster', true,
 							'point_count', count(*)::int,
-							'item_ids', jsonb_agg(` + layer.IDFieldName + `),
+							'item_ids', to_jsonb((array_agg(` + layer.IDFieldName + `))[1:50])::text,
 							'point_count_abbreviated',
 								CASE
 									WHEN count(*) >= 10000 THEN (count(*)/1000)::int || 'K'
