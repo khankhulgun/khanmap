@@ -388,11 +388,11 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 								CircleColor: []interface{}{
 									"step",
 									[]interface{}{"get", "point_count"},
-									"#05a41bff",
+									"#05a41b",
 									100,
-									"#ca6a0bff",
+									"#ca6a0b",
 									750,
-									"#c51221ff",
+									"#c51221",
 								},
 								CircleRadius: []interface{}{
 									"step",
@@ -405,7 +405,7 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 								},
 								CircleOpacity:       1,
 								CircleStrokeWidth:   5,
-								CircleStrokeColor:   "#05a41bff",
+								CircleStrokeColor:   "#05a41b",
 								CircleStrokeOpacity: 0.4,
 							},
 						}
