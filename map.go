@@ -16,6 +16,7 @@ func Set(app *fiber.App) {
 	app.Get("/saved-tiles/:layer/:z/:x/:y.pbf", tiles.SaveVectorTileHandler)
 	app.Get("/save-tile/:layer", tiles.SaveHandler)
 	app.Get("/fonts/:fontstack/:range.pbf", tiles.FontHandler)
+	app.Get("/layer-bounds/:layer", tiles.LayerBoundsHandler)
 
 	a := app.Group("/mapserver/api")
 	a.Get("/geometry-tables", agentMW.IsLoggedIn(), controllers.GeometryTables)

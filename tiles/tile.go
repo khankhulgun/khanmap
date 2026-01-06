@@ -255,74 +255,10 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 		}
 	}
 
-	for key, value := range adminFilters {
-		// Skip metadata keys or empty values
-		if key == "search_columns" || value == "" {
-			continue
-		}
-
-		// Handle generic global search
-		if key == "search" {
-			searchCols := adminFilters["search_columns"]
-			if searchCols == "" {
-				// Default searchable columns if none specified.
-				// These are common columns in the schemas.
-				searchCols = "name,org_name,title,description"
-			}
-			cols := strings.Split(searchCols, ",")
-			var searchParts []string
-
-			for _, col := range cols {
-				col = strings.TrimSpace(col)
-				if col == "" {
-					continue
-				}
-				// Basic sanitization
-				col = strings.ReplaceAll(col, "\"", "")
-				col = strings.ReplaceAll(col, "'", "")
-
-				searchParts = append(searchParts, fmt.Sprintf("\"%s\" ILIKE ?", col))
-			}
-
-			if len(searchParts) > 0 {
-				filterConditions = append(filterConditions, fmt.Sprintf("AND (%s)", strings.Join(searchParts, " OR ")))
-				// Append the search value for each column condition
-				for range searchParts {
-					filterValues = append(filterValues, "%"+value+"%")
-				}
-			}
-			continue
-		}
-
-		// Handle Array/IN (supports "1,2,3" and "[1,2,3]")
-		if strings.Contains(value, ",") {
-			cleanedValue := strings.Trim(value, "[]")
-			parts := strings.Split(cleanedValue, ",")
-			var placeholders []string
-			for _, part := range parts {
-				placeholders = append(placeholders, "?")
-				filterValues = append(filterValues, strings.TrimSpace(part))
-			}
-			// Sanitize key
-			safeKey := strings.ReplaceAll(key, "\"", "")
-			filterConditions = append(filterConditions, fmt.Sprintf("AND \"%s\" IN (%s)", safeKey, strings.Join(placeholders, ",")))
-			continue
-		}
-
-		// Handle explicit LIKE
-		if strings.HasSuffix(key, "__like") {
-			realKey := strings.TrimSuffix(key, "__like")
-			safeKey := strings.ReplaceAll(realKey, "\"", "")
-			filterConditions = append(filterConditions, fmt.Sprintf("AND \"%s\" ILIKE ?", safeKey))
-			filterValues = append(filterValues, "%"+value+"%")
-			continue
-		}
-
-		// Standard Equality
-		safeKey := strings.ReplaceAll(key, "\"", "")
-		filterConditions = append(filterConditions, fmt.Sprintf("AND \"%s\" = ?", safeKey))
-		filterValues = append(filterValues, value)
-	}
+	// Use reusable filter builder
+	conditions, fArgs := maplayer.BuildFilterConditions(adminFilters)
+	filterConditions = append(filterConditions, conditions...)
+	filterValues = append(filterValues, fArgs...)
 
 	for key, value := range areaFilters {
 		if key == "districtID" && layer.SoumIDField != nil && *layer.SoumIDField != "" {
@@ -470,4 +406,79 @@ func VectorTileHandlerWithPermission(c *fiber.Ctx) error {
 	}
 
 	return tileHandler(layerDetails, user, filters, areaFilters)(c)
+}
+
+func LayerBoundsHandler(c *fiber.Ctx) error {
+	layer := c.Params("layer")
+	query := c.Queries()
+	filters := make(map[string]string)
+
+	for key, value := range query {
+		if key != "districtID" && key != "regionID" {
+			filters[key] = value
+		}
+	}
+
+	layerDetails, err := maplayer.FetchLayerDetails(layer)
+	if err != nil {
+		log.Printf("Layer not found: %v", err)
+		return c.Status(fiber.StatusNotFound).SendString("Layer not found")
+	}
+
+	sqlConditions, sqlArgs := maplayer.BuildFilterConditions(filters)
+
+	// Add area filters if needed (similar to tileHandler) or just use what we have.
+	// tileHandler logic for area filters:
+	// if key == "districtID" && layer.SoumIDField ...
+	// Let's replicate basic filter logic or just reuse BuildFilterConditions which handles generic filters.
+	// For bounds, we might want to respect area filters too if passed?
+	// The user query didn't specify, but consistency is good.
+	// Let's add area filter support if relevant keys are present in query params.
+
+	var areaConditions []string
+	var areaArgs []interface{}
+
+	if val := c.Query("districtID"); val != "" && layerDetails.SoumIDField != nil && *layerDetails.SoumIDField != "" {
+		areaConditions = append(areaConditions, fmt.Sprintf("AND %s = ?", *layerDetails.SoumIDField))
+		areaArgs = append(areaArgs, val)
+	}
+	if val := c.Query("regionID"); val != "" && layerDetails.BaghIDField != nil && *layerDetails.BaghIDField != "" {
+		areaConditions = append(areaConditions, fmt.Sprintf("AND %s = ?", *layerDetails.BaghIDField))
+		areaArgs = append(areaArgs, val)
+	}
+
+	finalConditions := append(sqlConditions, areaConditions...)
+	finalArgs := append(sqlArgs, areaArgs...)
+
+	whereClause := ""
+	if len(finalConditions) > 0 {
+		whereClause = "WHERE 1=1 " + strings.Join(finalConditions, " ")
+	}
+
+	rawSQL := fmt.Sprintf(`
+		SELECT ST_XMin(ext), ST_YMin(ext), ST_XMax(ext), ST_YMax(ext)
+		FROM (
+			SELECT ST_SetSRID(ST_Extent(%s), 4326) as ext
+			FROM %s.%s
+			%s
+		) as t
+	`, layerDetails.GeometryFieldName, layerDetails.DbSchema, layerDetails.DbTable, whereClause)
+
+	var minX, minY, maxX, maxY *float64
+	err = DB.DB.Raw(rawSQL, finalArgs...).Row().Scan(&minX, &minY, &maxX, &maxY)
+	if err != nil {
+		log.Printf("Error calculating bounds: %v", err)
+		return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
+	}
+
+	if minX == nil || minY == nil {
+		// No data found or empty extent
+		return c.JSON(fiber.Map{
+			"bounds": nil,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"bounds": []float64{*minX, *minY, *maxX, *maxY},
+	})
 }
