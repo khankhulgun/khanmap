@@ -256,7 +256,71 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 	}
 
 	for key, value := range adminFilters {
-		filterConditions = append(filterConditions, fmt.Sprintf("AND %s = ?", key))
+		// Skip metadata keys or empty values
+		if key == "search_columns" || value == "" {
+			continue
+		}
+
+		// Handle generic global search
+		if key == "search" {
+			searchCols := adminFilters["search_columns"]
+			if searchCols == "" {
+				// Default searchable columns if none specified.
+				// These are common columns in the schemas.
+				searchCols = "name,org_name,title,description"
+			}
+			cols := strings.Split(searchCols, ",")
+			var searchParts []string
+
+			for _, col := range cols {
+				col = strings.TrimSpace(col)
+				if col == "" {
+					continue
+				}
+				// Basic sanitization
+				col = strings.ReplaceAll(col, "\"", "")
+				col = strings.ReplaceAll(col, "'", "")
+
+				searchParts = append(searchParts, fmt.Sprintf("\"%s\" ILIKE ?", col))
+			}
+
+			if len(searchParts) > 0 {
+				filterConditions = append(filterConditions, fmt.Sprintf("AND (%s)", strings.Join(searchParts, " OR ")))
+				// Append the search value for each column condition
+				for range searchParts {
+					filterValues = append(filterValues, "%"+value+"%")
+				}
+			}
+			continue
+		}
+
+		// Handle Array/IN (supports "1,2,3" and "[1,2,3]")
+		if strings.Contains(value, ",") {
+			cleanedValue := strings.Trim(value, "[]")
+			parts := strings.Split(cleanedValue, ",")
+			var placeholders []string
+			for _, part := range parts {
+				placeholders = append(placeholders, "?")
+				filterValues = append(filterValues, strings.TrimSpace(part))
+			}
+			// Sanitize key
+			safeKey := strings.ReplaceAll(key, "\"", "")
+			filterConditions = append(filterConditions, fmt.Sprintf("AND \"%s\" IN (%s)", safeKey, strings.Join(placeholders, ",")))
+			continue
+		}
+
+		// Handle explicit LIKE
+		if strings.HasSuffix(key, "__like") {
+			realKey := strings.TrimSuffix(key, "__like")
+			safeKey := strings.ReplaceAll(realKey, "\"", "")
+			filterConditions = append(filterConditions, fmt.Sprintf("AND \"%s\" ILIKE ?", safeKey))
+			filterValues = append(filterValues, "%"+value+"%")
+			continue
+		}
+
+		// Standard Equality
+		safeKey := strings.ReplaceAll(key, "\"", "")
+		filterConditions = append(filterConditions, fmt.Sprintf("AND \"%s\" = ?", safeKey))
 		filterValues = append(filterValues, value)
 	}
 
