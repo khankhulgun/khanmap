@@ -256,7 +256,7 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 	}
 
 	// Use reusable filter builder
-	conditions, fArgs := maplayer.BuildFilterConditions(adminFilters)
+	conditions, fArgs := maplayer.BuildFilterConditions(adminFilters, layer.DbSchema, layer.DbTable)
 	filterConditions = append(filterConditions, conditions...)
 	filterValues = append(filterValues, fArgs...)
 
@@ -425,7 +425,7 @@ func LayerBoundsHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).SendString("Layer not found")
 	}
 
-	sqlConditions, sqlArgs := maplayer.BuildFilterConditions(filters)
+	sqlConditions, sqlArgs := maplayer.BuildFilterConditions(filters, layerDetails.DbSchema, layerDetails.DbTable)
 
 	// Add area filters if needed (similar to tileHandler) or just use what we have.
 	// tileHandler logic for area filters:
