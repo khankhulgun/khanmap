@@ -49,6 +49,30 @@ func BuildFilterConditions(filters map[string]string) ([]string, []interface{}) 
 			continue
 		}
 
+		// Handle specific Array Aggregation Columns
+		if key == "service_type_ids" || key == "food_country_ids" {
+			safeKey := strings.ReplaceAll(key, "\"", "")
+			cleanedValue := strings.Trim(value, "[]")
+
+			if cleanedValue == "" {
+				continue
+			}
+
+			if strings.Contains(cleanedValue, ",") {
+				parts := strings.Split(cleanedValue, ",")
+				var placeholders []string
+				for _, part := range parts {
+					placeholders = append(placeholders, "?")
+					args = append(args, strings.TrimSpace(part))
+				}
+				conditions = append(conditions, fmt.Sprintf("AND \"%s\" && ARRAY[%s]::int[]", safeKey, strings.Join(placeholders, ",")))
+			} else {
+				conditions = append(conditions, fmt.Sprintf("AND ?::int = ANY(\"%s\")", safeKey))
+				args = append(args, cleanedValue)
+			}
+			continue
+		}
+
 		// Handle Array/IN (supports "1,2,3" and "[1,2,3]")
 		if strings.Contains(value, ",") {
 			cleanedValue := strings.Trim(value, "[]")
