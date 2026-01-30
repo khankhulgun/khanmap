@@ -21,7 +21,20 @@ func TableColumns(c *fiber.Ctx) error {
 	schema := c.Params("schema")
 	tableName := c.Params("table")
 	var columns []models.TableColumn
-	if err := DB.DB.Raw(`SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = ? AND table_name = ?`, schema, tableName).Scan(&columns).Error; err != nil {
+	if err := DB.DB.Raw(`SELECT 
+    a.attname AS column_name,
+    format_type(a.atttypid, a.atttypmod) AS data_type
+FROM 
+    pg_attribute a
+JOIN 
+    pg_class c ON a.attrelid = c.oid
+JOIN 
+    pg_namespace n ON c.relnamespace = n.oid
+WHERE 
+    c.relname = ?      
+    AND n.nspname = ?   
+    AND a.attnum > 0 
+    AND NOT a.attisdropped;`, schema, tableName).Scan(&columns).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(columns)
