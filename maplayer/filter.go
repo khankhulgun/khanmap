@@ -122,6 +122,36 @@ func BuildFilterConditions(filters map[string]string, schema, table string) ([]s
 				continue
 			}
 
+			// Determine appropriate cast based on column type
+			castType := "int[]" // default
+			singleCast := "int" // default
+
+			if dtype, ok := colTypes[key]; ok {
+				switch dtype {
+				case "smallint[]":
+					castType = "smallint[]"
+					singleCast = "smallint"
+				case "bigint[]":
+					castType = "bigint[]"
+					singleCast = "bigint"
+				case "integer[]", "int[]":
+					castType = "int[]"
+					singleCast = "int"
+				case "text[]", "character varying[]":
+					castType = "text[]"
+					singleCast = "text"
+				}
+			} else {
+				// Fallback generic logic or explicit overrides if schema missing
+				if key == "service_type_ids" {
+					castType = "smallint[]"
+					singleCast = "smallint"
+				} else if key == "food_country_ids" {
+					castType = "int[]"
+					singleCast = "int"
+				}
+			}
+
 			if strings.Contains(cleanedValue, ",") {
 				parts := strings.Split(cleanedValue, ",")
 				var placeholders []string
@@ -129,26 +159,10 @@ func BuildFilterConditions(filters map[string]string, schema, table string) ([]s
 					placeholders = append(placeholders, "?")
 					args = append(args, strings.TrimSpace(part))
 				}
-				// Use correct casting based on column type if we wanted to be super precise,
-				// but ::int[] is usually what we need for ID arrays.
-				// However, if the user has a text[] column, ::int[] might fail.
-				// The user specifically asked for "service_type_ids" -> "smallint[]" and "food_country_ids" -> "integer[]".
-				// Both are compatible with int casting for the numeric literal inputs usually.
-				// But to be generic, we should probably output the formatted string array or cast appropriately.
-				// For now, adhering to the user's previous request pattern which used ::int[].
-				// If we want to be safe for text arrays, we might need to check the base type.
-				// But given the context of "ids", int is likely specific.
-				// Let's stick to the user's requested pattern for arrays. To support generic arrays better we might need more logic
-				// but for "array_agg column filter" which are usually IDs, this is the request.
 
-				// Let's refine: If the column type is integer[] or smallint[], cast to int[].
-				// If text[], cast to text[].
-				// User only mentioned "if column type array_agg it should by 2 = ANY(service_type_ids); or food_country_ids && ARRAY[1, 5];"
-				// I will use ::int[] as default for now as most agg arrays in this context are IDs.
-
-				conditions = append(conditions, fmt.Sprintf("AND \"%s\" && ARRAY[%s]::int[]", safeKey, strings.Join(placeholders, ",")))
+				conditions = append(conditions, fmt.Sprintf("AND \"%s\" && ARRAY[%s]::%s", safeKey, strings.Join(placeholders, ","), castType))
 			} else {
-				conditions = append(conditions, fmt.Sprintf("AND ?::int = ANY(\"%s\")", safeKey))
+				conditions = append(conditions, fmt.Sprintf("AND ?::%s = ANY(\"%s\")", singleCast, safeKey))
 				args = append(args, cleanedValue)
 			}
 			continue
