@@ -34,7 +34,7 @@ WHERE
     c.relname = ?      
     AND n.nspname = ?   
     AND a.attnum > 0 
-    AND NOT a.attisdropped;`, schema, tableName).Scan(&columns).Error; err != nil {
+    AND NOT a.attisdropped;`, tableName, schema).Scan(&columns).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(columns)
