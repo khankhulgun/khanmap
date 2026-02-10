@@ -275,7 +275,7 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 	var args []interface{}
 
 	// Build args based on whether clustering is enabled
-	if layer.GeometryType == "Point" && z < 16 {
+	if layer.GeometryType == "Point" && z <= 17 {
 		// Clustering query args
 		// Use center latitude for radius calculation to reduce distortion
 		centerLat := (minY + maxY) / 2.0
