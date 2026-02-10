@@ -390,9 +390,9 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 									[]interface{}{"get", "point_count"},
 									"#05a41b",
 									100,
-									"#ca6a0b",
+									"#02663aff",
 									750,
-									"#c51221",
+									"#024f34ff",
 								},
 								CircleRadius: []interface{}{
 									"step",
