@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -133,6 +134,13 @@ func GetMapLayers(c *fiber.Ctx) error {
 				"message": "Error writing JSON file",
 				"error":   err.Error(),
 			})
+		}
+
+		// Clean old sprite images before generating new sprite sheet
+		spriteImagesDir := fmt.Sprintf("./public/map/%s/sprite/images", id)
+		oldFiles, _ := filepath.Glob(filepath.Join(spriteImagesDir, "*.png"))
+		for _, f := range oldFiles {
+			os.Remove(f)
 		}
 
 		if spriteErr := sprite.MakeSprite(fmt.Sprintf("./public/map/%s/sprite/images", id), fmt.Sprintf("./public/map/%s/sprite/%s", id, id)); spriteErr != nil {
@@ -390,6 +398,12 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 							// Create a unique sprite image ID for each unique value
 							spriteImageID := layer.ID + "-" + uniqueVal
 
+							// Determine the filter comparison value — use integer if the unique value is numeric
+							var filterValue interface{} = uniqueVal
+							if intVal, err := strconv.Atoi(uniqueVal); err == nil {
+								filterValue = intVal
+							}
+
 							// Unclustered point layer filtered by unique value
 							pointSymbol := models.SymbolLayer{
 								ID:          spriteImageID,
@@ -399,7 +413,7 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 								Filter: []interface{}{
 									"all",
 									[]interface{}{"!", []interface{}{"has", "point_count"}},
-									[]interface{}{"==", []interface{}{"get", uniqueValueField}, uniqueVal},
+									[]interface{}{"==", []interface{}{"get", uniqueValueField}, filterValue},
 								},
 								Layout: models.SymbolLayerLayout{
 									IconImage:           spriteImageID,
