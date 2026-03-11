@@ -28,7 +28,7 @@ func SVGToPNG(svgFile, pngFile string) error {
 	}
 
 	// Set the target size: fixed width of 30px, height scales proportionally
-	targetWidth := 45
+	targetWidth := 60
 	aspectRatio := icon.ViewBox.H / icon.ViewBox.W
 	w := targetWidth
 	h := int(float64(targetWidth) * aspectRatio)
