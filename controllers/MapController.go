@@ -74,7 +74,7 @@ func GetMapLayers(c *fiber.Ctx) error {
 	}
 	currentMap.Categories = filteredCategories
 
-	mapStyle, generateErr := generateVectorTileStyle(currentMap.Categories, secure)
+	mapStyle, generateErr := generateVectorTileStyle(currentMap.Categories, secure, generate == "true")
 
 	currentMap.Version = mapStyle.Version
 	currentMap.Layers = mapStyle.Layers
@@ -285,7 +285,7 @@ func GetMapLayersWithAuth(c *fiber.Ctx) error {
 		}
 	}
 
-	mapStyle, generateErr := generateVectorTileStyle(currentMap.Categories, secure)
+	mapStyle, generateErr := generateVectorTileStyle(currentMap.Categories, secure, false)
 
 	currentMap.Version = mapStyle.Version
 	currentMap.Layers = mapStyle.Layers
@@ -311,7 +311,7 @@ func GetMapLayersWithAuth(c *fiber.Ctx) error {
 	return c.JSON(currentMap)
 }
 
-func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure string) (models.VectorTileStyle, error) {
+func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure string, generate bool) (models.VectorTileStyle, error) {
 	var style models.VectorTileStyle
 
 	// Initialize style properties
@@ -440,45 +440,47 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 						}
 						style.Layers = append(style.Layers, clusterCountLayer)
 
-						// Define the output directory
-						outputDir := fmt.Sprintf("./public/map/%s/sprite/images", category.MapID)
-						err := os.MkdirAll(outputDir, os.ModePerm) // Ensure directory exists
-						if err != nil {
-							return style, errors.New("Error creating output directory")
-						}
-
-						// Assuming `markerPath` contains the path to the marker file (e.g., "path/to/marker.svg" or "path/to/marker.png")
-						markerPath := *layer.Legends[0].Marker                      // Example: Assuming `layer.Marker` contains the file path to the marker
-						outputFile := fmt.Sprintf("%s/%s.png", outputDir, layer.ID) // Define output file name
-
-						// Check if the marker is an SVG
-						if strings.HasSuffix(markerPath, ".svg") {
-							// Convert SVG to PNG
-
-							err = sprite.SVGToPNG("./public"+markerPath, outputFile)
+						if generate {
+							// Define the output directory
+							outputDir := fmt.Sprintf("./public/map/%s/sprite/images", category.MapID)
+							err := os.MkdirAll(outputDir, os.ModePerm) // Ensure directory exists
 							if err != nil {
-								return style, fmt.Errorf("error converting SVG to PNG for layer %s (%s), file: %s: %w", layer.LayerTitle, layer.ID, markerPath, err)
+								return style, errors.New("Error creating output directory")
 							}
-						} else if strings.HasSuffix(markerPath, ".png") {
-							// Copy the PNG marker to the target location
-							input, err := os.Open(markerPath)
-							if err != nil {
-								return style, errors.New("Error opening marker file: " + layer.LayerTitle + layer.ID)
-							}
-							defer input.Close()
 
-							output, err := os.Create(outputFile)
-							if err != nil {
-								return style, errors.New("Error creating output file: " + layer.LayerTitle + layer.ID)
-							}
-							defer output.Close()
+							// Assuming `markerPath` contains the path to the marker file (e.g., "path/to/marker.svg" or "path/to/marker.png")
+							markerPath := *layer.Legends[0].Marker                      // Example: Assuming `layer.Marker` contains the file path to the marker
+							outputFile := fmt.Sprintf("%s/%s.png", outputDir, layer.ID) // Define output file name
 
-							_, err = io.Copy(output, input)
-							if err != nil {
-								return style, errors.New("Error copying marker file: " + layer.LayerTitle + layer.ID)
+							// Check if the marker is an SVG
+							if strings.HasSuffix(markerPath, ".svg") {
+								// Convert SVG to PNG
+
+								err = sprite.SVGToPNG("./public"+markerPath, outputFile)
+								if err != nil {
+									return style, fmt.Errorf("error converting SVG to PNG for layer %s (%s), file: %s: %w", layer.LayerTitle, layer.ID, markerPath, err)
+								}
+							} else if strings.HasSuffix(markerPath, ".png") {
+								// Copy the PNG marker to the target location
+								input, err := os.Open(markerPath)
+								if err != nil {
+									return style, errors.New("Error opening marker file: " + layer.LayerTitle + layer.ID)
+								}
+								defer input.Close()
+
+								output, err := os.Create(outputFile)
+								if err != nil {
+									return style, errors.New("Error creating output file: " + layer.LayerTitle + layer.ID)
+								}
+								defer output.Close()
+
+								_, err = io.Copy(output, input)
+								if err != nil {
+									return style, errors.New("Error copying marker file: " + layer.LayerTitle + layer.ID)
+								}
+							} else {
+								return style, errors.New("Unsupported marker file format: " + layer.LayerTitle + layer.ID)
 							}
-						} else {
-							return style, errors.New("Unsupported marker file format: " + layer.LayerTitle + layer.ID)
 						}
 					}
 				}
