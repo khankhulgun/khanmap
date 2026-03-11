@@ -135,7 +135,14 @@ func GetMapLayers(c *fiber.Ctx) error {
 			})
 		}
 
-		sprite.MakeSprite(fmt.Sprintf("./public/map/%s/sprite/images", id), fmt.Sprintf("./public/map/%s/sprite/%s", id, id))
+		if spriteErr := sprite.MakeSprite(fmt.Sprintf("./public/map/%s/sprite/images", id), fmt.Sprintf("./public/map/%s/sprite/%s", id, id)); spriteErr != nil {
+			log.Printf("MakeSprite error for map %s: %v", id, spriteErr)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"status":  "error",
+				"message": "Error generating sprite sheet",
+				"error":   spriteErr.Error(),
+			})
+		}
 	}
 
 	return c.JSON(currentMap)
@@ -450,7 +457,7 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 
 							err = sprite.SVGToPNG("./public"+markerPath, outputFile)
 							if err != nil {
-								return style, errors.New("Error converting SVG to PNG: " + layer.LayerTitle + layer.ID)
+								return style, fmt.Errorf("error converting SVG to PNG for layer %s (%s), file: %s: %w", layer.LayerTitle, layer.ID, markerPath, err)
 							}
 						} else if strings.HasSuffix(markerPath, ".png") {
 							// Copy the PNG marker to the target location

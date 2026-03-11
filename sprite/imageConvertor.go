@@ -1,8 +1,10 @@
 package sprite
 
 import (
+	"fmt"
 	"image"
 	"image/png"
+	"log"
 	"os"
 
 	"github.com/srwiley/oksvg"
@@ -13,14 +15,16 @@ func SVGToPNG(svgFile, pngFile string) error {
 	// Open the SVG file
 	f, err := os.Open(svgFile)
 	if err != nil {
-		return err
+		log.Printf("SVGToPNG: failed to open SVG file %s: %v", svgFile, err)
+		return fmt.Errorf("failed to open SVG file %s: %w", svgFile, err)
 	}
 	defer f.Close()
 
 	// Parse the SVG
 	icon, err := oksvg.ReadIconStream(f)
 	if err != nil {
-		return err
+		log.Printf("SVGToPNG: failed to parse SVG file %s: %v", svgFile, err)
+		return fmt.Errorf("failed to parse SVG file %s: %w", svgFile, err)
 	}
 
 	// Set the target size (adjust as needed)
@@ -55,14 +59,17 @@ func SVGToPNG(svgFile, pngFile string) error {
 	// Encode the image as PNG with full transparency
 	out, err := os.Create(pngFile)
 	if err != nil {
-		return err
+		log.Printf("SVGToPNG: failed to create output PNG %s: %v", pngFile, err)
+		return fmt.Errorf("failed to create output PNG %s: %w", pngFile, err)
 	}
 	defer out.Close()
 
 	err = png.Encode(out, img)
 	if err != nil {
-		return err
+		log.Printf("SVGToPNG: failed to encode PNG %s: %v", pngFile, err)
+		return fmt.Errorf("failed to encode PNG %s: %w", pngFile, err)
 	}
 
+	log.Printf("SVGToPNG: successfully converted %s -> %s", svgFile, pngFile)
 	return nil
 }
