@@ -361,32 +361,99 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 			switch layer.GeometryType {
 			case "Point":
 
-				// Define line layer style using line color, width, and other properties
 				if len(layer.Legends) >= 1 {
-					if layer.Legends[0].Marker != nil {
 
-						// Add layers in specific order for frontend compatibility (ol-mapbox-style)
-						// 1. Unclustered points layer (using marker icon) - FIRST to ensure Vector context
-						pointSymbol := models.SymbolLayer{
-							ID:          layer.ID,
-							Type:        "symbol",
-							Source:      layer.ID, // Use category source
-							SourceLayer: layer.DbSchema + "." + layer.DbTable,
-							Filter:      []interface{}{"!", []interface{}{"has", "point_count"}},
-							Layout: models.SymbolLayerLayout{
-								IconImage:           layer.ID,
-								IconSize:            1.0,
-								IconAllowOverlap:    true,
-								IconIgnorePlacement: false,
-								IconOffset:          []int{0, 0},
-							},
-							Paint: models.SymbolLayerPaint{
-								IconColor: "#000000",
-							},
+					// Check if this layer uses unique value rendering (multiple markers per unique value)
+					hasUniqueValueField := layer.UniqueValueField != nil && *layer.UniqueValueField != ""
+					hasMultipleUniqueMarkers := false
+
+					if hasUniqueValueField {
+						// Check if legends actually have unique_value + marker pairs
+						for _, legend := range layer.Legends {
+							if legend.UniqueValue != nil && *legend.UniqueValue != "" && legend.Marker != nil && *legend.Marker != "" {
+								hasMultipleUniqueMarkers = true
+								break
+							}
 						}
-						style.Layers = append(style.Layers, pointSymbol)
+					}
 
-						// 2. Cluster circles layer
+					if hasMultipleUniqueMarkers {
+						// === UNIQUE VALUE RENDERING: Multiple markers per unique value ===
+						uniqueValueField := *layer.UniqueValueField
+
+						for _, legend := range layer.Legends {
+							if legend.UniqueValue == nil || *legend.UniqueValue == "" || legend.Marker == nil || *legend.Marker == "" {
+								continue
+							}
+
+							uniqueVal := *legend.UniqueValue
+							// Create a unique sprite image ID for each unique value
+							spriteImageID := layer.ID + "-" + uniqueVal
+
+							// Unclustered point layer filtered by unique value
+							pointSymbol := models.SymbolLayer{
+								ID:          spriteImageID,
+								Type:        "symbol",
+								Source:      layer.ID,
+								SourceLayer: layer.DbSchema + "." + layer.DbTable,
+								Filter: []interface{}{
+									"all",
+									[]interface{}{"!", []interface{}{"has", "point_count"}},
+									[]interface{}{"==", []interface{}{"get", uniqueValueField}, uniqueVal},
+								},
+								Layout: models.SymbolLayerLayout{
+									IconImage:           spriteImageID,
+									IconSize:            1.0,
+									IconAllowOverlap:    true,
+									IconIgnorePlacement: false,
+									IconOffset:          []int{0, 0},
+								},
+								Paint: models.SymbolLayerPaint{
+									IconColor: "#000000",
+								},
+							}
+							style.Layers = append(style.Layers, pointSymbol)
+
+							// Generate sprite image for each unique marker
+							if generate {
+								outputDir := fmt.Sprintf("./public/map/%s/sprite/images", category.MapID)
+								err := os.MkdirAll(outputDir, os.ModePerm)
+								if err != nil {
+									return style, errors.New("Error creating output directory")
+								}
+
+								markerPath := *legend.Marker
+								outputFile := fmt.Sprintf("%s/%s.png", outputDir, spriteImageID)
+
+								if strings.HasSuffix(markerPath, ".svg") {
+									err = sprite.SVGToPNG("./public"+markerPath, outputFile)
+									if err != nil {
+										return style, fmt.Errorf("error converting SVG to PNG for layer %s unique value %s (%s), file: %s: %w", layer.LayerTitle, uniqueVal, layer.ID, markerPath, err)
+									}
+								} else if strings.HasSuffix(markerPath, ".png") {
+									input, err := os.Open("./public" + markerPath)
+									if err != nil {
+										return style, fmt.Errorf("error opening marker file for unique value %s: %s %s", uniqueVal, layer.LayerTitle, layer.ID)
+									}
+									defer input.Close()
+
+									output, err := os.Create(outputFile)
+									if err != nil {
+										return style, fmt.Errorf("error creating output file for unique value %s: %s %s", uniqueVal, layer.LayerTitle, layer.ID)
+									}
+									defer output.Close()
+
+									_, err = io.Copy(output, input)
+									if err != nil {
+										return style, fmt.Errorf("error copying marker for unique value %s: %s %s", uniqueVal, layer.LayerTitle, layer.ID)
+									}
+								} else {
+									return style, fmt.Errorf("unsupported marker format for unique value %s: %s %s", uniqueVal, layer.LayerTitle, layer.ID)
+								}
+							}
+						}
+
+						// Cluster circles layer (shared for all unique values)
 						clusterCircleLayer := models.CircleLayer{
 							ID:          layer.ID + "-clusters",
 							Type:        "circle",
@@ -420,7 +487,83 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 						}
 						style.Layers = append(style.Layers, clusterCircleLayer)
 
-						// 3. Cluster count text layer
+						// Cluster count text layer (shared)
+						clusterCountLayer := models.SymbolLayer{
+							ID:          layer.ID + "-cluster-count",
+							Type:        "symbol",
+							Source:      layer.ID,
+							SourceLayer: layer.DbSchema + "." + layer.DbTable,
+							Filter:      []interface{}{"has", "point_count"},
+							Layout: models.SymbolLayerLayout{
+								TextField:  []interface{}{"get", "point_count_abbreviated"},
+								TextFont:   []string{"Noto Sans Bold"},
+								TextSize:   12,
+								TextOffset: []float64{0, 0},
+								TextAnchor: "center",
+							},
+							Paint: models.SymbolLayerPaint{
+								TextColor: "#ffffff",
+							},
+						}
+						style.Layers = append(style.Layers, clusterCountLayer)
+
+					} else if layer.Legends[0].Marker != nil {
+						// === STANDARD SINGLE MARKER RENDERING ===
+
+						pointSymbol := models.SymbolLayer{
+							ID:          layer.ID,
+							Type:        "symbol",
+							Source:      layer.ID,
+							SourceLayer: layer.DbSchema + "." + layer.DbTable,
+							Filter:      []interface{}{"!", []interface{}{"has", "point_count"}},
+							Layout: models.SymbolLayerLayout{
+								IconImage:           layer.ID,
+								IconSize:            1.0,
+								IconAllowOverlap:    true,
+								IconIgnorePlacement: false,
+								IconOffset:          []int{0, 0},
+							},
+							Paint: models.SymbolLayerPaint{
+								IconColor: "#000000",
+							},
+						}
+						style.Layers = append(style.Layers, pointSymbol)
+
+						// Cluster circles layer
+						clusterCircleLayer := models.CircleLayer{
+							ID:          layer.ID + "-clusters",
+							Type:        "circle",
+							Source:      layer.ID,
+							SourceLayer: layer.DbSchema + "." + layer.DbTable,
+							Filter:      []interface{}{"has", "point_count"},
+							Paint: models.CircleLayerPaint{
+								CircleColor: []interface{}{
+									"step",
+									[]interface{}{"get", "point_count"},
+									"#05a41b",
+									100,
+									"#02663a",
+									750,
+									"#024f34",
+								},
+								CircleRadius: []interface{}{
+									"step",
+									[]interface{}{"get", "point_count"},
+									20,
+									100,
+									30,
+									750,
+									40,
+								},
+								CircleOpacity:       1,
+								CircleStrokeWidth:   5,
+								CircleStrokeColor:   "#05a41b",
+								CircleStrokeOpacity: 0.4,
+							},
+						}
+						style.Layers = append(style.Layers, clusterCircleLayer)
+
+						// Cluster count text layer
 						clusterCountLayer := models.SymbolLayer{
 							ID:          layer.ID + "-cluster-count",
 							Type:        "symbol",
@@ -441,28 +584,22 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 						style.Layers = append(style.Layers, clusterCountLayer)
 
 						if generate {
-							// Define the output directory
 							outputDir := fmt.Sprintf("./public/map/%s/sprite/images", category.MapID)
-							err := os.MkdirAll(outputDir, os.ModePerm) // Ensure directory exists
+							err := os.MkdirAll(outputDir, os.ModePerm)
 							if err != nil {
 								return style, errors.New("Error creating output directory")
 							}
 
-							// Assuming `markerPath` contains the path to the marker file (e.g., "path/to/marker.svg" or "path/to/marker.png")
-							markerPath := *layer.Legends[0].Marker                      // Example: Assuming `layer.Marker` contains the file path to the marker
-							outputFile := fmt.Sprintf("%s/%s.png", outputDir, layer.ID) // Define output file name
+							markerPath := *layer.Legends[0].Marker
+							outputFile := fmt.Sprintf("%s/%s.png", outputDir, layer.ID)
 
-							// Check if the marker is an SVG
 							if strings.HasSuffix(markerPath, ".svg") {
-								// Convert SVG to PNG
-
 								err = sprite.SVGToPNG("./public"+markerPath, outputFile)
 								if err != nil {
 									return style, fmt.Errorf("error converting SVG to PNG for layer %s (%s), file: %s: %w", layer.LayerTitle, layer.ID, markerPath, err)
 								}
 							} else if strings.HasSuffix(markerPath, ".png") {
-								// Copy the PNG marker to the target location
-								input, err := os.Open(markerPath)
+								input, err := os.Open("./public" + markerPath)
 								if err != nil {
 									return style, errors.New("Error opening marker file: " + layer.LayerTitle + layer.ID)
 								}
