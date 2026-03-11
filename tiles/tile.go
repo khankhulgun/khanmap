@@ -69,7 +69,7 @@ func getClusterRadius(zoom int, lat float64) float64 {
 	// Earth circumference ~40,075,017 meters
 	// Resolution (meters/pixel) = 156543.03 * cos(lat) / 2^zoom
 
-	const standardRadiusPixels = 21.0
+	const standardRadiusPixels = 12.0
 	// Convert latitude to radians
 	latRad := lat * math.Pi / 180.0
 	resolution := 156543.03 * math.Cos(latRad) / math.Pow(2, float64(zoom))
@@ -119,7 +119,7 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 	var rawSQL string
 
 	// Check if this is a Point layer and should use clustering
-	if layer.GeometryType == "Point" && z < 16 {
+	if layer.GeometryType == "Point" && z < 14 {
 		// Clustering SQL for Point layers
 		rawSQL = `
 		SELECT ST_AsMVT(tile, ?, ?, ?) FROM (
@@ -275,7 +275,7 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 	var args []interface{}
 
 	// Build args based on whether clustering is enabled
-	if layer.GeometryType == "Point" && z <= 18 {
+	if layer.GeometryType == "Point" && z < 14 {
 		// Clustering query args
 		// Use center latitude for radius calculation to reduce distortion
 		centerLat := (minY + maxY) / 2.0
