@@ -75,6 +75,15 @@ func GetMapLayers(c *fiber.Ctx) error {
 	}
 	currentMap.Categories = filteredCategories
 
+	if generate == "true" {
+		// Clean old sprite images BEFORE generating new ones
+		spriteImagesDir := fmt.Sprintf("./public/map/%s/sprite/images", id)
+		oldFiles, _ := filepath.Glob(filepath.Join(spriteImagesDir, "*.png"))
+		for _, f := range oldFiles {
+			os.Remove(f)
+		}
+	}
+
 	mapStyle, generateErr := generateVectorTileStyle(currentMap.Categories, secure, generate == "true")
 
 	currentMap.Version = mapStyle.Version
@@ -134,13 +143,6 @@ func GetMapLayers(c *fiber.Ctx) error {
 				"message": "Error writing JSON file",
 				"error":   err.Error(),
 			})
-		}
-
-		// Clean old sprite images before generating new sprite sheet
-		spriteImagesDir := fmt.Sprintf("./public/map/%s/sprite/images", id)
-		oldFiles, _ := filepath.Glob(filepath.Join(spriteImagesDir, "*.png"))
-		for _, f := range oldFiles {
-			os.Remove(f)
 		}
 
 		if spriteErr := sprite.MakeSprite(fmt.Sprintf("./public/map/%s/sprite/images", id), fmt.Sprintf("./public/map/%s/sprite/%s", id, id)); spriteErr != nil {
