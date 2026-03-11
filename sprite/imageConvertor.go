@@ -27,11 +27,11 @@ func SVGToPNG(svgFile, pngFile string) error {
 		return fmt.Errorf("failed to parse SVG file %s: %w", svgFile, err)
 	}
 
-	// Set the target size: fixed height of 40px, width scales proportionally
-	targetHeight := 40
-	aspectRatio := icon.ViewBox.W / icon.ViewBox.H
-	w := int(float64(targetHeight) * aspectRatio)
-	h := targetHeight
+	// Set the target size: fixed width of 30px, height scales proportionally
+	targetWidth := 40
+	aspectRatio := icon.ViewBox.H / icon.ViewBox.W
+	w := targetWidth
+	h := int(float64(targetWidth) * aspectRatio)
 	icon.SetTarget(0, 0, float64(w), float64(h))
 
 	// Create a new RGBA image with full transparency
