@@ -20,6 +20,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// DoCluster is set globally from khanmap.Set() to enable/disable clustering for all Point layers
+var DoCluster bool
+
 func GetMapLayers(c *fiber.Ctx) error {
 	id := c.Params("id")
 	generate := c.Query("generate")
@@ -406,17 +409,26 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 								filterValue = intVal
 							}
 
-							// Unclustered point layer filtered by unique value
+							// Build filter: unique value match + optionally exclude clustered features
+							var symbolFilter []interface{}
+							if DoCluster {
+								symbolFilter = []interface{}{
+									"all",
+									[]interface{}{"!", []interface{}{"has", "point_count"}},
+									[]interface{}{"==", []interface{}{"get", uniqueValueField}, filterValue},
+								}
+							} else {
+								symbolFilter = []interface{}{
+									"==", []interface{}{"get", uniqueValueField}, filterValue,
+								}
+							}
+
 							pointSymbol := models.SymbolLayer{
 								ID:          spriteImageID,
 								Type:        "symbol",
 								Source:      layer.ID,
 								SourceLayer: layer.DbSchema + "." + layer.DbTable,
-								Filter: []interface{}{
-									"all",
-									[]interface{}{"!", []interface{}{"has", "point_count"}},
-									[]interface{}{"==", []interface{}{"get", uniqueValueField}, filterValue},
-								},
+								Filter:      symbolFilter,
 								Layout: models.SymbolLayerLayout{
 									IconImage:           spriteImageID,
 									IconSize:            1.0,
@@ -469,69 +481,78 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 							}
 						}
 
-						// Cluster circles layer (shared for all unique values)
-						clusterCircleLayer := models.CircleLayer{
-							ID:          layer.ID + "-clusters",
-							Type:        "circle",
-							Source:      layer.ID,
-							SourceLayer: layer.DbSchema + "." + layer.DbTable,
-							Filter:      []interface{}{"has", "point_count"},
-							Paint: models.CircleLayerPaint{
-								CircleColor: []interface{}{
-									"step",
-									[]interface{}{"get", "point_count"},
-									"#05a41b",
-									100,
-									"#02663a",
-									750,
-									"#024f34",
+						// Cluster layers — only if is_cluster is enabled
+						if DoCluster {
+							// Cluster circles layer (shared for all unique values)
+							clusterCircleLayer := models.CircleLayer{
+								ID:          layer.ID + "-clusters",
+								Type:        "circle",
+								Source:      layer.ID,
+								SourceLayer: layer.DbSchema + "." + layer.DbTable,
+								Filter:      []interface{}{"has", "point_count"},
+								Paint: models.CircleLayerPaint{
+									CircleColor: []interface{}{
+										"step",
+										[]interface{}{"get", "point_count"},
+										"#05a41b",
+										100,
+										"#02663a",
+										750,
+										"#024f34",
+									},
+									CircleRadius: []interface{}{
+										"step",
+										[]interface{}{"get", "point_count"},
+										20,
+										100,
+										30,
+										750,
+										40,
+									},
+									CircleOpacity:       1,
+									CircleStrokeWidth:   5,
+									CircleStrokeColor:   "#05a41b",
+									CircleStrokeOpacity: 0.4,
 								},
-								CircleRadius: []interface{}{
-									"step",
-									[]interface{}{"get", "point_count"},
-									20,
-									100,
-									30,
-									750,
-									40,
-								},
-								CircleOpacity:       1,
-								CircleStrokeWidth:   5,
-								CircleStrokeColor:   "#05a41b",
-								CircleStrokeOpacity: 0.4,
-							},
-						}
-						style.Layers = append(style.Layers, clusterCircleLayer)
+							}
+							style.Layers = append(style.Layers, clusterCircleLayer)
 
-						// Cluster count text layer (shared)
-						clusterCountLayer := models.SymbolLayer{
-							ID:          layer.ID + "-cluster-count",
-							Type:        "symbol",
-							Source:      layer.ID,
-							SourceLayer: layer.DbSchema + "." + layer.DbTable,
-							Filter:      []interface{}{"has", "point_count"},
-							Layout: models.SymbolLayerLayout{
-								TextField:  []interface{}{"get", "point_count_abbreviated"},
-								TextFont:   []string{"Noto Sans Bold"},
-								TextSize:   12,
-								TextOffset: []float64{0, 0},
-								TextAnchor: "center",
-							},
-							Paint: models.SymbolLayerPaint{
-								TextColor: "#ffffff",
-							},
+							// Cluster count text layer (shared)
+							clusterCountLayer := models.SymbolLayer{
+								ID:          layer.ID + "-cluster-count",
+								Type:        "symbol",
+								Source:      layer.ID,
+								SourceLayer: layer.DbSchema + "." + layer.DbTable,
+								Filter:      []interface{}{"has", "point_count"},
+								Layout: models.SymbolLayerLayout{
+									TextField:  []interface{}{"get", "point_count_abbreviated"},
+									TextFont:   []string{"Noto Sans Bold"},
+									TextSize:   12,
+									TextOffset: []float64{0, 0},
+									TextAnchor: "center",
+								},
+								Paint: models.SymbolLayerPaint{
+									TextColor: "#ffffff",
+								},
+							}
+							style.Layers = append(style.Layers, clusterCountLayer)
 						}
-						style.Layers = append(style.Layers, clusterCountLayer)
 
 					} else if layer.Legends[0].Marker != nil {
 						// === STANDARD SINGLE MARKER RENDERING ===
+
+						// Build filter: optionally exclude clustered features if clustering is enabled
+						var symbolFilter []interface{}
+						if DoCluster {
+							symbolFilter = []interface{}{"!", []interface{}{"has", "point_count"}}
+						}
 
 						pointSymbol := models.SymbolLayer{
 							ID:          layer.ID,
 							Type:        "symbol",
 							Source:      layer.ID,
 							SourceLayer: layer.DbSchema + "." + layer.DbTable,
-							Filter:      []interface{}{"!", []interface{}{"has", "point_count"}},
+							Filter:      symbolFilter,
 							Layout: models.SymbolLayerLayout{
 								IconImage:           layer.ID,
 								IconSize:            1.0,
@@ -545,59 +566,60 @@ func generateVectorTileStyle(categories []models.ViewMapLayerCategories, secure 
 						}
 						style.Layers = append(style.Layers, pointSymbol)
 
-						// Cluster circles layer
-						clusterCircleLayer := models.CircleLayer{
-							ID:          layer.ID + "-clusters",
-							Type:        "circle",
-							Source:      layer.ID,
-							SourceLayer: layer.DbSchema + "." + layer.DbTable,
-							Filter:      []interface{}{"has", "point_count"},
-							Paint: models.CircleLayerPaint{
-								CircleColor: []interface{}{
-									"step",
-									[]interface{}{"get", "point_count"},
-									"#05a41b",
-									100,
-									"#02663a",
-									750,
-									"#024f34",
+						// Cluster layers — only if is_cluster is enabled
+						if DoCluster {
+							clusterCircleLayer := models.CircleLayer{
+								ID:          layer.ID + "-clusters",
+								Type:        "circle",
+								Source:      layer.ID,
+								SourceLayer: layer.DbSchema + "." + layer.DbTable,
+								Filter:      []interface{}{"has", "point_count"},
+								Paint: models.CircleLayerPaint{
+									CircleColor: []interface{}{
+										"step",
+										[]interface{}{"get", "point_count"},
+										"#05a41b",
+										100,
+										"#02663a",
+										750,
+										"#024f34",
+									},
+									CircleRadius: []interface{}{
+										"step",
+										[]interface{}{"get", "point_count"},
+										20,
+										100,
+										30,
+										750,
+										40,
+									},
+									CircleOpacity:       1,
+									CircleStrokeWidth:   5,
+									CircleStrokeColor:   "#05a41b",
+									CircleStrokeOpacity: 0.4,
 								},
-								CircleRadius: []interface{}{
-									"step",
-									[]interface{}{"get", "point_count"},
-									20,
-									100,
-									30,
-									750,
-									40,
-								},
-								CircleOpacity:       1,
-								CircleStrokeWidth:   5,
-								CircleStrokeColor:   "#05a41b",
-								CircleStrokeOpacity: 0.4,
-							},
-						}
-						style.Layers = append(style.Layers, clusterCircleLayer)
+							}
+							style.Layers = append(style.Layers, clusterCircleLayer)
 
-						// Cluster count text layer
-						clusterCountLayer := models.SymbolLayer{
-							ID:          layer.ID + "-cluster-count",
-							Type:        "symbol",
-							Source:      layer.ID,
-							SourceLayer: layer.DbSchema + "." + layer.DbTable,
-							Filter:      []interface{}{"has", "point_count"},
-							Layout: models.SymbolLayerLayout{
-								TextField:  []interface{}{"get", "point_count_abbreviated"},
-								TextFont:   []string{"Noto Sans Bold"},
-								TextSize:   12,
-								TextOffset: []float64{0, 0},
-								TextAnchor: "center",
-							},
-							Paint: models.SymbolLayerPaint{
-								TextColor: "#ffffff",
-							},
+							clusterCountLayer := models.SymbolLayer{
+								ID:          layer.ID + "-cluster-count",
+								Type:        "symbol",
+								Source:      layer.ID,
+								SourceLayer: layer.DbSchema + "." + layer.DbTable,
+								Filter:      []interface{}{"has", "point_count"},
+								Layout: models.SymbolLayerLayout{
+									TextField:  []interface{}{"get", "point_count_abbreviated"},
+									TextFont:   []string{"Noto Sans Bold"},
+									TextSize:   12,
+									TextOffset: []float64{0, 0},
+									TextAnchor: "center",
+								},
+								Paint: models.SymbolLayerPaint{
+									TextColor: "#ffffff",
+								},
+							}
+							style.Layers = append(style.Layers, clusterCountLayer)
 						}
-						style.Layers = append(style.Layers, clusterCountLayer)
 
 						if generate {
 							outputDir := fmt.Sprintf("./public/map/%s/sprite/images", category.MapID)

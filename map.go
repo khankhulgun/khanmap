@@ -10,7 +10,11 @@ import (
 	"github.com/lambda-platform/lambda/config"
 )
 
-func Set(app *fiber.App) {
+func Set(app *fiber.App, doCluster bool) {
+	// Store global cluster config
+	tiles.DoCluster = doCluster
+	controllers.DoCluster = doCluster
+
 	app.Get("/tiles/:layer/:z/:x/:y.pbf", tiles.VectorTileHandler)
 	app.Get("/tiles-with-permission/:layer/:z/:x/:y.pbf", agentMW.IsLoggedIn(), tiles.VectorTileHandlerWithPermission)
 	app.Get("/saved-tiles/:layer/:z/:x/:y.pbf", tiles.SaveVectorTileHandler)

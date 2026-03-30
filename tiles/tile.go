@@ -28,6 +28,9 @@ const (
 	tileExtent = 256
 )
 
+// DoCluster is set globally from khanmap.Set() to enable/disable clustering for all Point layers
+var DoCluster bool
+
 func tileToBBox(z, x, y int) (minX, minY, maxX, maxY float64) {
 	n := 1 << z
 	nf := float64(n)
@@ -118,8 +121,8 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 
 	var rawSQL string
 
-	// Check if this is a Point layer and should use clustering
-	if layer.GeometryType == "Point" && z < 14 {
+	// Check if this is a Point layer that should use clustering
+	if DoCluster && layer.GeometryType == "Point" && z < 14 {
 		// Clustering SQL for Point layers
 		rawSQL = `
 		SELECT ST_AsMVT(tile, ?, ?, ?) FROM (
@@ -275,7 +278,7 @@ func getVectorTile(z, x, y int, layer models.MapLayersForTile, user interface{},
 	var args []interface{}
 
 	// Build args based on whether clustering is enabled
-	if layer.GeometryType == "Point" && z < 14 {
+	if DoCluster && layer.GeometryType == "Point" && z < 14 {
 		// Clustering query args
 		// Use center latitude for radius calculation to reduce distortion
 		centerLat := (minY + maxY) / 2.0
